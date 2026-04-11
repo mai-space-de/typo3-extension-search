@@ -1,0 +1,16 @@
+paths:
+  - Configuration/
+
+linters:
+  Indentation:
+    enabled: true
+    useSpaces: true
+    indentPerLevel: 4
+  DeadCode:
+    enabled: true
+  EmptyBlock:
+    enabled: true
+  NestingConsistency:
+    enabled: true
+  RepeatingRValue:
+    enabled: true
