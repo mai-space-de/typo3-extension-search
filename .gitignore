@@ -1,0 +1,29 @@
+# Dependencies
+/vendor/
+/node_modules/
+
+# Build output
+/.Build/
+/.build/
+/public/
+/var/
+
+# Lock files
+composer.lock
+
+# Agent / AI
+.claude/
+.junie/
+.cursor/
+.aider*
+.logs/
+
+# Caches
+.php-cs-fixer.cache
+.phpunit.cache/
+.phpunit.result.cache
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
