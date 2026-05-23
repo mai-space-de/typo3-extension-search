@@ -9,6 +9,14 @@
             "role": "Developer"
         }
     ],
+    "require": {
+        "php": "^8.2",
+        "typo3/cms-core": "^14.1",
+        "typo3/cms-extbase": "^14.1",
+        "typo3/cms-fluid": "^14.1",
+        "typo3/cms-scheduler": "^14.1",
+        "apache-solr-for-typo3/solr": "^14.0@alpha"
+    },
     "require-dev": {
         "armin/editorconfig-cli": "^2.1",
         "friendsofphp/php-cs-fixer": "^3.0",

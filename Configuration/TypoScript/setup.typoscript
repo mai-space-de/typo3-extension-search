@@ -1,0 +1,32 @@
+plugin.tx_maisearch {
+    settings {
+        solr {
+            host = {$plugin.tx_maisearch.settings.solr.host}
+            port = {$plugin.tx_maisearch.settings.solr.port}
+            path = {$plugin.tx_maisearch.settings.solr.path}
+            scheme = {$plugin.tx_maisearch.settings.solr.scheme}
+            core = {$plugin.tx_maisearch.settings.solr.core}
+            coreMapping {
+                en = {$plugin.tx_maisearch.settings.solr.coreMapping.en}
+                de = {$plugin.tx_maisearch.settings.solr.coreMapping.de}
+                uk = {$plugin.tx_maisearch.settings.solr.coreMapping.uk}
+                ar = {$plugin.tx_maisearch.settings.solr.coreMapping.ar}
+            }
+        }
+
+        resultsPerPage = {$plugin.tx_maisearch.settings.resultsPerPage}
+    }
+
+    persistence {
+        storagePid =
+    }
+
+    view {
+        templateRootPaths.0 = {$plugin.tx_maisearch.view.templateRootPath}
+        partialRootPaths.0 = {$plugin.tx_maisearch.view.partialRootPath}
+        layoutRootPaths.0 = {$plugin.tx_maisearch.view.layoutRootPath}
+    }
+}
+
+# Register the search plugin
+tt_content.list.20.maisearch_search = < plugin.tx_maisearch

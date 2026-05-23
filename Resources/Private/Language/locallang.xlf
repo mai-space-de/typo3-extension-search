@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+    <file source-language="en" datatype="plaintext" original="EXT:mai_search/Resources/Private/Language/locallang.xlf">
+        <header/>
+        <body>
+            <trans-unit id="search.placeholder">
+                <source>Search...</source>
+            </trans-unit>
+            <trans-unit id="search.submit">
+                <source>Search</source>
+            </trans-unit>
+            <trans-unit id="search.results.count">
+                <source>%d results for &quot;%s&quot;</source>
+            </trans-unit>
+            <trans-unit id="search.results.none">
+                <source>No results found.</source>
+                
+            </trans-unit>
+        </body>
+    </file>
+</xliff>

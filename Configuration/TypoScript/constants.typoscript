@@ -1,0 +1,27 @@
+plugin.tx_maisearch {
+    view {
+        templateRootPath = EXT:mai_search/Resources/Private/Templates/
+        partialRootPath = EXT:mai_search/Resources/Private/Partials/
+        layoutRootPath = EXT:mai_search/Resources/Private/Layouts/
+    }
+
+    settings {
+        solr {
+            host = localhost
+            port = 8983
+            path = /solr/
+            scheme = http
+
+            core = core_en
+
+            coreMapping {
+                en = core_en
+                de = core_de
+                uk = core_uk
+                ar = core_ar
+            }
+        }
+
+        resultsPerPage = 20
+    }
+}

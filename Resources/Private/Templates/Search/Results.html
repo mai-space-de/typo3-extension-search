@@ -1,0 +1,58 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+      data-namespace-typo3-fluid="true">
+
+<f:form action="results" method="post" name="search" class="search-form">
+    <div class="search-form__field">
+        <f:form.textfield
+            name="query"
+            value="{query}"
+            placeholder="{f:translate(key: 'search.placeholder', default: 'Search...')}"
+            class="search-form__input"
+        />
+        <f:form.submit
+            value="{f:translate(key: 'search.submit', default: 'Search')}"
+            class="search-form__submit"
+        />
+    </div>
+</f:form>
+
+<div class="search-results">
+    <p class="search-results__count">
+        <f:translate
+            key="search.results.count"
+            arguments="{0: count, 1: query}"
+            default="{count} results for &quot;{query}&quot;"
+        />
+    </p>
+
+    <f:if condition="{results}">
+        <f:then>
+            <ol class="search-results__list">
+                <f:for each="{results}" as="result">
+                    <li class="search-results__item">
+                        <a href="{result.url}" class="search-results__link">
+                            <span class="search-results__icon">{result.icon}</span>
+                            <span class="search-results__title">{result.title}</span>
+                        </a>
+                        <p class="search-results__snippet">{result.snippet}</p>
+                        <span class="search-results__meta">
+                            <span class="search-results__score">{result.score}</span>
+                            <f:if condition="{result.date}">
+                                <time class="search-results__date" datetime="{result.date -> f:format.date(format: 'Y-m-d')}">
+                                    {result.date -> f:format.date()}
+                                </time>
+                            </f:if>
+                        </span>
+                    </li>
+                </f:for>
+            </ol>
+        </f:then>
+        <f:else>
+            <p class="search-results__none">
+                <f:translate key="search.results.none" default="No results found." />
+            </p>
+        </f:else>
+    </f:if>
+</div>
+
+</html>
