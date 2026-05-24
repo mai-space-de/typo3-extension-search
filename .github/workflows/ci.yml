@@ -1,0 +1,16 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  ci:
+    strategy:
+      matrix:
+        php: ['8.4', '8.5']
+      fail-fast: false
+    uses: mai-space-de/ci-workflows/.github/workflows/typo3-extension-ci.yml@main
+    with:
+      php-version: ${{ matrix.php }}
