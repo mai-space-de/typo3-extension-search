@@ -20,6 +20,11 @@ services:
     tags:
       - name: 'maispace.search.formatter_registry'
 
+  Maispace\MaiSearch\Indexer\PageIndexer:
+    tags:
+      - name: 'maispace.search.indexer'
+      - name: 'maispace.search.result_formatter'
+
   Maispace\MaiSearch\Controller\SearchController:
     public: true
 

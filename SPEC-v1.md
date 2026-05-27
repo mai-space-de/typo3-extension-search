@@ -5,7 +5,7 @@
 **v1 delivers full-text site search via Apache Solr** with a plugin-based indexer/result-formatter architecture. It replaces the default TYPO3 indexed-search for the BGM site.
 
 ### In scope
-- Full-text content search across pages, news, faq, gallery, events, timeline, members, maps, glossary, media, downloads, team, songs, resources, board
+- Full-text content search across pages, news, faq, gallery, events, timeline, members, team, testimonials, jobs, locations
 - Plugin-based indexer registration (DI tag `maispace.search.indexer`)
 - Plugin-based result formatting (DI tag `maispace.search.result_formatter`)
 - Search result DTO with type, title, snippet, URL, icon, date
@@ -119,21 +119,20 @@ Classes/
 ```
 
 Implementing extensions (each gets its own `Indexer` + optional `ResultFormatter`):
-- `mai_pages` (default page content)
-- `mai_news`
-- `mai_faq`
-- `mai_gallery`
-- `mai_events`
-- `mai_timeline`
-- `mai_member`
-- `mai_maps`
-- `mai_glossary`
-- `mai_media`
-- `mai_downloads`
-- `mai_team`
-- `mai_songs`
-- `mai_resources`
-- `mai_board`
+
+| Extension | Indexer class | Status |
+|---|---|---|
+| `mai_search` | `PageIndexer` (pages + tt_content — built into `mai_search`) | ✅ Implemented |
+| `mai_news` | `NewsIndexer` | ✅ Implemented |
+| `mai_faq` | `FaqIndexer` | ✅ Implemented |
+| `mai_gallery` | `GalleryIndexer` | ✅ Implemented |
+| `mai_jobs` | `JobsIndexer` | ✅ Implemented |
+| `mai_locations` | `LocationIndexer` | ✅ Implemented |
+| `mai_member` | `MemberIndexer` | ✅ Implemented |
+| `mai_team` | `TeamMemberIndexer` | ✅ Implemented |
+| `mai_testimonials` | `TestimonialsIndexer` | ✅ Implemented |
+| `mai_timeline` | `TimelineIndexer` | ✅ Implemented |
+| `mai_events` | `EventsIndexer` | 📝 Planned (tracked: `events-5`) |
 
 ---
 
@@ -150,7 +149,7 @@ Implementing extensions (each gets its own `Indexer` + optional `ResultFormatter
 | 7 | Create `Scheduler\FullReindexTask` — iterates all indexers | Steps 4–6 |
 | 8 | Create `SearchController` — search form + results action | Steps 3, 6 |
 | 9 | Register TypoScript constants + setup (Connection, plugin) | Step 8 |
-| 10 | Implement indexers in each extension (15 extensions) | Steps 5–6 |
+| 10 | Implement indexers in each extension — see implementation map above (10 done, 1 planned) | Steps 5–6 |
 | 11 | Implement result formatters per extension | Steps 5–6 |
 | 12 | Integration test: reindex, search, verify results | All |
 
