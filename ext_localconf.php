@@ -7,6 +7,12 @@ use TYPO3\CMS\Extbase\Utility\ExtensionUtility;
 
 defined('TYPO3') or die();
 
+$GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_tcemain.php']['processDatamapClass']['mai_search']
+    = \Maispace\MaiSearch\Hook\DataHandlerHook::class;
+
+$GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_tcemain.php']['processCmdmapClass']['mai_search']
+    = \Maispace\MaiSearch\Hook\DataHandlerHook::class;
+
 ExtensionUtility::configurePlugin(
     'MaiSearch',
     'Search',
