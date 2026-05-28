@@ -6,6 +6,7 @@ namespace Maispace\MaiSearch\Indexer;
 
 use ApacheSolrForTypo3\Solr\System\Solr\Document\Document;
 use Maispace\MaiSearch\Domain\Model\IndexingContext;
+use Maispace\MaiSearch\Domain\Service\IndexManagementService;
 use Maispace\MaiSearch\Domain\Service\SearchIndexerInterface;
 use Maispace\MaiSearch\Domain\Solr\ConnectionFactory;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -56,13 +57,8 @@ abstract class AbstractIndexer implements SearchIndexerInterface
 
     protected function sendDocument(Document $document, ?string $languageCode = null): void
     {
-        if ($languageCode !== null) {
-            $connection = $this->connectionFactory->getConnectionForLanguageCode($languageCode);
-        } else {
-            $connection = $this->connectionFactory->getConnection();
-        }
-
-        $connection->getWriteService()->addDocuments([$document]);
+        $indexManagementService = GeneralUtility::makeInstance(IndexManagementService::class);
+        $indexManagementService->addDocumentForLanguageCode($document, $languageCode);
     }
 
     public function getBoost(string $type): float

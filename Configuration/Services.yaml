@@ -20,6 +20,9 @@ services:
     tags:
       - name: 'maispace.search.formatter_registry'
 
+  Maispace\MaiSearch\Domain\Service\VectorEmbeddingInterface:
+    class: 'Maispace\MaiSearch\Service\VectorEmbeddingAdapter'
+
   Maispace\MaiSearch\Indexer\PageIndexer:
     tags:
       - name: 'maispace.search.indexer'

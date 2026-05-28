@@ -11,7 +11,9 @@ use ApacheSolrForTypo3\Solr\System\Solr\SolrConnection;
 use Maispace\MaiSearch\Domain\Dto\SearchResult;
 use Maispace\MaiSearch\Domain\Service\SearchResultFormatterInterface;
 use Maispace\MaiSearch\Domain\Service\SearchService;
+use Maispace\MaiSearch\Domain\Service\VectorEmbeddingInterface;
 use Maispace\MaiSearch\Domain\Solr\ConnectionFactory;
+use Maispace\MaiSearch\Domain\Solr\SchemaManager;
 use Maispace\MaiSearch\Service\ResultFormatterRegistry;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -317,16 +319,309 @@ class SearchServiceTest extends TestCase
     }
 
     #[Test]
-    public function searchDoesNotPassNullLanguageToConnectionFactory(): void
+    public function searchDoesNotAddRqParamWhenRagDisabled(): void
+    {
+        $embeddingService = $this->createMock(VectorEmbeddingInterface::class);
+        $embeddingService->expects(self::never())
+            ->method('embedText');
+
+        $this->searchService = new SearchService(
+            $this->connectionFactory,
+            $this->resultFormatterRegistry,
+            $embeddingService,
+        );
+
+        $response = $this->createResponseAdapter([]);
+
+        $readService = $this->createMock(SolrReadService::class);
+        $readService
+            ->expects(self::once())
+            ->method('search')
+            ->with(self::callback(function (Query $query): bool {
+                $params = $query->getParams();
+                return !isset($params['rq']);
+            }))
+            ->willReturn($response);
+
+        $connection = $this->createMock(SolrConnection::class);
+        $connection->method('getReadService')->willReturn($readService);
+
+        $this->connectionFactory->method('getConnection')->willReturn($connection);
+
+        $this->searchService->search('hybrid test', 20, 0, null, false);
+    }
+
+    #[Test]
+    public function searchDoesNotAddRqParamWhenEmbeddingServiceIsNull(): void
     {
         $response = $this->createResponseAdapter([]);
 
-        $this->connectionFactory
+        $readService = $this->createMock(SolrReadService::class);
+        $readService
             ->expects(self::once())
-            ->method('getConnection')
-            ->with(null)
-            ->willReturn($this->mockSolrConnection($response));
+            ->method('search')
+            ->with(self::callback(function (Query $query): bool {
+                $params = $query->getParams();
+                return !isset($params['rq']);
+            }))
+            ->willReturn($response);
 
-        $this->searchService->search('test');
+        $connection = $this->createMock(SolrConnection::class);
+        $connection->method('getReadService')->willReturn($readService);
+
+        $this->connectionFactory->method('getConnection')->willReturn($connection);
+
+        $this->searchService->search('hybrid test', 20, 0, null, true);
+    }
+
+    #[Test]
+    public function searchAddsRqParamWhenRagEnabled(): void
+    {
+        $queryVector = array_fill(0, 1536, 0.001);
+        $embeddingService = $this->createMock(VectorEmbeddingInterface::class);
+        $embeddingService
+            ->method('embedText')
+            ->with('hybrid test')
+            ->willReturn($queryVector);
+
+        $this->searchService = new SearchService(
+            $this->connectionFactory,
+            $this->resultFormatterRegistry,
+            $embeddingService,
+        );
+
+        $response = $this->createResponseAdapter([]);
+
+        $readService = $this->createMock(SolrReadService::class);
+        $readService
+            ->expects(self::once())
+            ->method('search')
+            ->with(self::callback(function (Query $query): bool {
+                $params = $query->getParams();
+                if (!isset($params['rq'])) {
+                    return false;
+                }
+                $rqValue = $params['rq'];
+                return str_starts_with((string) $rqValue, '{!knn f=content_vector topK=100}[');
+            }))
+            ->willReturn($response);
+
+        $connection = $this->createMock(SolrConnection::class);
+        $connection->method('getReadService')->willReturn($readService);
+
+        $this->connectionFactory->method('getConnection')->willReturn($connection);
+
+        $this->searchService->search('hybrid test', 20, 0, null, true);
+    }
+
+    #[Test]
+    public function searchRqParamIncludesVectorValues(): void
+    {
+        $queryVector = [0.1, 0.2, 0.3];
+        $embeddingService = $this->createMock(VectorEmbeddingInterface::class);
+        $embeddingService
+            ->method('embedText')
+            ->willReturn($queryVector);
+
+        $this->searchService = new SearchService(
+            $this->connectionFactory,
+            $this->resultFormatterRegistry,
+            $embeddingService,
+        );
+
+        $response = $this->createResponseAdapter([]);
+
+        $readService = $this->createMock(SolrReadService::class);
+        $readService
+            ->expects(self::once())
+            ->method('search')
+            ->with(self::callback(function (Query $query) use ($queryVector): bool {
+                $params = $query->getParams();
+                $rqValue = (string) ($params['rq'] ?? '');
+                $expectedVectorString = '[' . implode(',', $queryVector) . ']';
+                return str_contains($rqValue, $expectedVectorString);
+            }))
+            ->willReturn($response);
+
+        $connection = $this->createMock(SolrConnection::class);
+        $connection->method('getReadService')->willReturn($readService);
+
+        $this->connectionFactory->method('getConnection')->willReturn($connection);
+
+        $this->searchService->search('semantic query', 20, 0, null, true);
+    }
+
+    #[Test]
+    public function searchFallsBackWhenEmbeddingApiFails(): void
+    {
+        $embeddingService = $this->createMock(VectorEmbeddingInterface::class);
+        $embeddingService
+            ->method('embedText')
+            ->willThrowException(new \RuntimeException('API unavailable'));
+
+        $this->searchService = new SearchService(
+            $this->connectionFactory,
+            $this->resultFormatterRegistry,
+            $embeddingService,
+        );
+
+        $response = $this->createResponseAdapter([]);
+
+        $readService = $this->createMock(SolrReadService::class);
+        $readService
+            ->expects(self::once())
+            ->method('search')
+            ->with(self::callback(function (Query $query): bool {
+                $params = $query->getParams();
+                return !isset($params['rq']);
+            }))
+            ->willReturn($response);
+
+        $connection = $this->createMock(SolrConnection::class);
+        $connection->method('getReadService')->willReturn($readService);
+
+        $this->connectionFactory->method('getConnection')->willReturn($connection);
+
+        $this->searchService->search('fallback query', 20, 0, null, true);
+    }
+
+    #[Test]
+    public function searchRqParamWithCustomWeightAndTopK(): void
+    {
+        $queryVector = [0.5, 0.6];
+        $embeddingService = $this->createMock(VectorEmbeddingInterface::class);
+        $embeddingService
+            ->method('embedText')
+            ->willReturn($queryVector);
+
+        $this->searchService = new SearchService(
+            $this->connectionFactory,
+            $this->resultFormatterRegistry,
+            $embeddingService,
+        );
+
+        $response = $this->createResponseAdapter([]);
+
+        $readService = $this->createMock(SolrReadService::class);
+        $readService
+            ->expects(self::once())
+            ->method('search')
+            ->with(self::callback(function (Query $query): bool {
+                $params = $query->getParams();
+                $rqValue = (string) ($params['rq'] ?? '');
+                return str_contains($rqValue, 'topK=50')
+                    && str_contains($rqValue, '^0.5');
+            }))
+            ->willReturn($response);
+
+        $connection = $this->createMock(SolrConnection::class);
+        $connection->method('getReadService')->willReturn($readService);
+
+        $this->connectionFactory->method('getConnection')->willReturn($connection);
+
+        $this->searchService->search('weighted query', 20, 0, null, true, 50, 0.5);
+    }
+
+    #[Test]
+    public function searchRqParamOmitsWeightWhenDefault(): void
+    {
+        $queryVector = [0.1];
+        $embeddingService = $this->createMock(VectorEmbeddingInterface::class);
+        $embeddingService
+            ->method('embedText')
+            ->willReturn($queryVector);
+
+        $this->searchService = new SearchService(
+            $this->connectionFactory,
+            $this->resultFormatterRegistry,
+            $embeddingService,
+        );
+
+        $response = $this->createResponseAdapter([]);
+
+        $readService = $this->createMock(SolrReadService::class);
+        $readService
+            ->expects(self::once())
+            ->method('search')
+            ->with(self::callback(function (Query $query): bool {
+                $params = $query->getParams();
+                $rqValue = (string) ($params['rq'] ?? '');
+                return !str_contains($rqValue, '^');
+            }))
+            ->willReturn($response);
+
+        $connection = $this->createMock(SolrConnection::class);
+        $connection->method('getReadService')->willReturn($readService);
+
+        $this->connectionFactory->method('getConnection')->willReturn($connection);
+
+        $this->searchService->search('default weight', 20, 0, null, true, 100, 1.0);
+    }
+
+    #[Test]
+    public function searchSkipsKnnWhenTopKIsZero(): void
+    {
+        $embeddingService = $this->createMock(VectorEmbeddingInterface::class);
+        $embeddingService->expects(self::never())
+            ->method('embedText');
+
+        $this->searchService = new SearchService(
+            $this->connectionFactory,
+            $this->resultFormatterRegistry,
+            $embeddingService,
+        );
+
+        $response = $this->createResponseAdapter([]);
+
+        $readService = $this->createMock(SolrReadService::class);
+        $readService
+            ->expects(self::once())
+            ->method('search')
+            ->with(self::callback(function (Query $query): bool {
+                $params = $query->getParams();
+                return !isset($params['rq']);
+            }))
+            ->willReturn($response);
+
+        $connection = $this->createMock(SolrConnection::class);
+        $connection->method('getReadService')->willReturn($readService);
+
+        $this->connectionFactory->method('getConnection')->willReturn($connection);
+
+        $this->searchService->search('zero topk', 20, 0, null, true, 0);
+    }
+
+    #[Test]
+    public function searchSkipsKnnWhenEmbeddingReturnsEmpty(): void
+    {
+        $embeddingService = $this->createMock(VectorEmbeddingInterface::class);
+        $embeddingService
+            ->method('embedText')
+            ->willReturn([]);
+
+        $this->searchService = new SearchService(
+            $this->connectionFactory,
+            $this->resultFormatterRegistry,
+            $embeddingService,
+        );
+
+        $response = $this->createResponseAdapter([]);
+
+        $readService = $this->createMock(SolrReadService::class);
+        $readService
+            ->expects(self::once())
+            ->method('search')
+            ->with(self::callback(function (Query $query): bool {
+                $params = $query->getParams();
+                return !isset($params['rq']);
+            }))
+            ->willReturn($response);
+
+        $connection = $this->createMock(SolrConnection::class);
+        $connection->method('getReadService')->willReturn($readService);
+
+        $this->connectionFactory->method('getConnection')->willReturn($connection);
+
+        $this->searchService->search('empty embedding', 20, 0, null, true);
     }
 }

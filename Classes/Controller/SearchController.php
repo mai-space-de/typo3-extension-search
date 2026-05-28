@@ -38,6 +38,7 @@ class SearchController extends ActionController
             (int) ($this->settings['resultsPerPage'] ?? 20),
             0,
             $language,
+            $ragEnabled,
         );
 
         $this->view->assignMultiple([

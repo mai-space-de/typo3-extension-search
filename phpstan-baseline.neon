@@ -1,2 +1,7 @@
 parameters:
-    ignoreErrors:
+	ignoreErrors:
+		-
+			message: '#^Parameter \#1 \$className of static method TYPO3\\CMS\\Core\\Utility\\GeneralUtility\:\:makeInstance\(\) expects class\-string\<Maispace\\MaiTranslate\\Service\\EmbeddingServiceInterface\>, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: Classes/Service/VectorEmbeddingAdapter.php
