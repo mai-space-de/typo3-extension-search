@@ -23,5 +23,10 @@ plugin.tx_maisearch {
         }
 
         resultsPerPage = 20
+
+        # RAG (Retrieval-Augmented Generation)
+        # When enabled, top search results are synthesised into an AI-generated answer card.
+        # Requires: Solr DenseVectorField schema, OpenAI API key in mai_translate.
+        ragEnabled = 0
     }
 }

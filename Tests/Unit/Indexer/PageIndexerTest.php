@@ -175,6 +175,63 @@ final class PageIndexerTest extends TestCase
         self::assertTrue(true);
     }
 
+    #[Test]
+    public function formatResultReturnsNullRootlineWhenFieldIsMissing(): void
+    {
+        $result = $this->subject->formatResult([
+            'title_s' => 'No Rootline',
+            'content_t' => 'content',
+            'url_s' => '/no-rootline',
+        ]);
+
+        self::assertNull($result->rootline);
+    }
+
+    #[Test]
+    public function formatResultReturnsNullRootlineWhenFieldIsEmpty(): void
+    {
+        $result = $this->subject->formatResult([
+            'title_s' => 'Empty Rootline',
+            'content_t' => 'content',
+            'url_s' => '/empty-rootline',
+            'rootline_s' => '',
+        ]);
+
+        self::assertNull($result->rootline);
+    }
+
+    #[Test]
+    public function formatResultParsesRootlineFromSolrDoc(): void
+    {
+        $result = $this->subject->formatResult([
+            'title_s' => 'With Rootline',
+            'content_t' => 'content',
+            'url_s' => '/with-rootline',
+            'rootline_s' => 'Home | About | Team',
+        ]);
+
+        self::assertNotNull($result->rootline);
+        self::assertCount(3, $result->rootline);
+        self::assertSame('Home', $result->rootline[0]);
+        self::assertSame('About', $result->rootline[1]);
+        self::assertSame('Team', $result->rootline[2]);
+    }
+
+    #[Test]
+    public function formatResultParsesSingleItemRootline(): void
+    {
+        $result = $this->subject->formatResult([
+            'title_s' => 'Root Page',
+            'content_t' => 'content',
+            'url_s' => '/',
+            'rootline_s' => 'Home',
+        ]);
+
+        self::assertNotNull($result->rootline);
+        self::assertCount(1, $result->rootline);
+        self::assertSame('Home', $result->rootline[0]);
+    }
+
     private function invokeBuildContent(object $record, string $pageContentText = ''): string
     {
         $reflection = new \ReflectionMethod($this->subject, 'buildContent');

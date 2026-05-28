@@ -1,0 +1,46 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" data-namespace-typo3-fluid="true">
+<f:layout name="Widget/Widget" />
+<f:section name="main">
+
+    <div class="widget-solr-health">
+        <div class="widget-solr-health-status">
+            <f:if condition="{health.connected}">
+                <f:then>
+                    <span class="badge badge-success">
+                        <f:translate key="LLL:EXT:mai_search/Resources/Private/Language/locallang_dashboard.xlf:widgets.solrHealth.connected" />
+                    </span>
+                </f:then>
+                <f:else>
+                    <span class="badge badge-danger">
+                        <f:translate key="LLL:EXT:mai_search/Resources/Private/Language/locallang_dashboard.xlf:widgets.solrHealth.disconnected" />
+                    </span>
+                </f:else>
+            </f:if>
+        </div>
+
+        <f:if condition="{health.connected}">
+            <dl class="widget-solr-health-dl">
+                <dt>
+                    <f:translate key="LLL:EXT:mai_search/Resources/Private/Language/locallang_dashboard.xlf:widgets.solrHealth.core" />
+                </dt>
+                <dd>{health.core}</dd>
+                <dt>
+                    <f:translate key="LLL:EXT:mai_search/Resources/Private/Language/locallang_dashboard.xlf:widgets.solrHealth.numDocs" />
+                </dt>
+                <dd>{health.numDocs}</dd>
+                <dt>
+                    <f:translate key="LLL:EXT:mai_search/Resources/Private/Language/locallang_dashboard.xlf:widgets.solrHealth.solrVersion" />
+                </dt>
+                <dd>{health.solrVersion}</dd>
+            </dl>
+        </f:if>
+
+        <f:if condition="{health.error}">
+            <div class="alert alert-danger">
+                {health.error}
+            </div>
+        </f:if>
+    </div>
+
+</f:section>
+</html>

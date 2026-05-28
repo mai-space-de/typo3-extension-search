@@ -30,3 +30,15 @@ services:
 
   Maispace\MaiSearch\Scheduler\FullReindexTask:
     public: true
+
+  dashboard.widget.solr_health:
+    class: 'Maispace\MaiSearch\Widget\SolrHealthWidget'
+    tags:
+      - name: dashboard.widget
+        identifier: 'solrHealth'
+        groupNames: 'systemInfo'
+        title: 'LLL:EXT:mai_search/Resources/Private/Language/locallang_dashboard.xlf:widgets.solrHealth.title'
+        description: 'LLL:EXT:mai_search/Resources/Private/Language/locallang_dashboard.xlf:widgets.solrHealth.description'
+        iconIdentifier: 'content-widget-list'
+        height: 'medium'
+        width: 'medium'

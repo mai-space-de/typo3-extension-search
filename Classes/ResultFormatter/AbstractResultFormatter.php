@@ -19,6 +19,7 @@ abstract class AbstractResultFormatter implements SearchResultFormatterInterface
             icon: $this->getIcon($this->getType()),
             date: $this->parseDate($solrDoc),
             score: (float) ($solrDoc['score'] ?? 0.0),
+            rootline: $this->parseRootline($solrDoc),
         );
     }
 
@@ -39,5 +40,20 @@ abstract class AbstractResultFormatter implements SearchResultFormatterInterface
         } catch (\Exception) {
             return null;
         }
+    }
+
+    /**
+     * @return string[]|null
+     */
+    protected function parseRootline(array $solrDoc): ?array
+    {
+        if (empty($solrDoc['rootline_s'])) {
+            return null;
+        }
+
+        $parts = explode(' | ', (string) $solrDoc['rootline_s']);
+        $filtered = array_values(array_filter(array_map('trim', $parts)));
+
+        return $filtered !== [] ? $filtered : null;
     }
 }

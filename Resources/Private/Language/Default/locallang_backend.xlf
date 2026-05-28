@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+    <file source-language="en" datatype="plaintext" original="messages" date="2026-05-27T00:00:00Z" product-name="mai_search">
+        <header/>
+        <body>
+            <trans-unit id="index.title">
+                <source>Search Index Management</source>
+            </trans-unit>
+            <trans-unit id="index.solrCores">
+                <source>Solr Cores</source>
+            </trans-unit>
+            <trans-unit id="index.indexers">
+                <source>Registered Indexers</source>
+            </trans-unit>
+            <trans-unit id="index.languages">
+                <source>Languages Indexed</source>
+            </trans-unit>
+            <trans-unit id="index.actions.title">
+                <source>Actions</source>
+            </trans-unit>
+            <trans-unit id="index.reindex.title">
+                <source>Re-index all content across all cores</source>
+            </trans-unit>
+            <trans-unit id="index.reindex.button">
+                <source>Re-index All</source>
+            </trans-unit>
+            <trans-unit id="index.clear.title">
+                <source>Clear the entire search index</source>
+            </trans-unit>
+            <trans-unit id="index.clear.button">
+                <source>Clear Index</source>
+            </trans-unit>
+            <trans-unit id="index.clear.confirm">
+                <source>Are you sure you want to clear the entire search index? This action cannot be undone.</source>
+            </trans-unit>
+            <trans-unit id="index.coreMapping.title">
+                <source>Core Mapping</source>
+            </trans-unit>
+            <trans-unit id="index.coreMapping.language">
+                <source>Language Code</source>
+            </trans-unit>
+            <trans-unit id="index.coreMapping.core">
+                <source>Solr Core</source>
+            </trans-unit>
+            <trans-unit id="index.noCoreMapping">
+                <source>No per-language core mapping configured. Using default core.</source>
+            </trans-unit>
+            <trans-unit id="index.indexerTypes.title">
+                <source>Registered Indexer Types</source>
+            </trans-unit>
+            <trans-unit id="index.indexerTypes.type">
+                <source>Type</source>
+            </trans-unit>
+            <trans-unit id="index.noIndexers">
+                <source>No indexers are currently registered.</source>
+            </trans-unit>
+        </body>
+    </file>
+</xliff>

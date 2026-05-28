@@ -49,4 +49,39 @@ class SearchResultTest extends TestCase
 
         self::assertNull($result->date);
     }
+
+    #[Test]
+    public function constructorDefaultsRootlineToNull(): void
+    {
+        $result = new SearchResult(
+            type: 'page',
+            title: 'Rootless',
+            snippet: '',
+            url: '/rootless',
+            icon: 'page-icon',
+            date: null,
+            score: 0.5,
+        );
+
+        self::assertNull($result->rootline);
+    }
+
+    #[Test]
+    public function constructorAcceptsRootlineArray(): void
+    {
+        $rootline = ['Home', 'News', 'Category A'];
+
+        $result = new SearchResult(
+            type: 'page',
+            title: 'Deep Page',
+            snippet: '',
+            url: '/deep',
+            icon: 'page-icon',
+            date: null,
+            score: 0.5,
+            rootline: $rootline,
+        );
+
+        self::assertSame($rootline, $result->rootline);
+    }
 }

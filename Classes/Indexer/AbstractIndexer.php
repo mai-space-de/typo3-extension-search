@@ -27,6 +27,9 @@ abstract class AbstractIndexer implements SearchIndexerInterface
         $this->persistenceManager = $persistenceManager;
     }
 
+    /**
+     * @param string[] $rootline Breadcrumb titles from site root to the record's parent page
+     */
     protected function createDocument(
         string $type,
         int $uid,
@@ -35,6 +38,7 @@ abstract class AbstractIndexer implements SearchIndexerInterface
         string $url,
         \DateTime $crdate,
         float $boost,
+        array $rootline = [],
     ): Document {
         $document = GeneralUtility::makeInstance(Document::class);
         $document->setField('id', $type . '-' . $uid);
@@ -45,13 +49,19 @@ abstract class AbstractIndexer implements SearchIndexerInterface
         $document->setField('uid_i', $uid);
         $document->setField('crdate_dt', $crdate->format('Y-m-d\TH:i:s\Z'));
         $document->setField('boost_i', (int) $boost);
+        $document->setField('rootline_s', implode(' | ', $rootline));
 
         return $document;
     }
 
-    protected function sendDocument(Document $document): void
+    protected function sendDocument(Document $document, ?string $languageCode = null): void
     {
-        $connection = $this->connectionFactory->getConnection();
+        if ($languageCode !== null) {
+            $connection = $this->connectionFactory->getConnectionForLanguageCode($languageCode);
+        } else {
+            $connection = $this->connectionFactory->getConnection();
+        }
+
         $connection->getWriteService()->addDocuments([$document]);
     }
 

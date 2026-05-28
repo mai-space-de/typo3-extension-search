@@ -45,19 +45,21 @@ class PageIndexer extends AbstractIndexer implements SearchResultFormatterInterf
             return;
         }
 
-        $pageContentText = $this->fetchPageContentText((int) $record->uid);
+        $pageUid = (int) $record->uid;
+        $pageContentText = $this->fetchPageContentText($pageUid);
 
         $document = $this->createDocument(
             type: $this->getType(),
-            uid: (int) $record->uid,
+            uid: $pageUid,
             title: (string) ($record->title ?? ''),
             content: $this->buildContent($record, $pageContentText),
             url: $this->buildUrl($record),
             crdate: $this->resolveDate($record),
             boost: $this->getBoost($this->getType()),
+            rootline: $this->resolveRootline($pageUid),
         );
 
-        $this->sendDocument($document);
+        $this->sendDocument($document, $context->languageCode);
     }
 
     public function removeRecord(int $uid, string $table): void
@@ -71,7 +73,7 @@ class PageIndexer extends AbstractIndexer implements SearchResultFormatterInterf
             if ($pageUid > 0) {
                 $record = $this->fetchPageRecord($pageUid);
                 if ($record !== null) {
-                    $context = new IndexingContext(core: 'core_de');
+                    $context = new IndexingContext(core: '');
                     $this->indexRecord($record, $context);
                 }
             }
@@ -120,6 +122,42 @@ class PageIndexer extends AbstractIndexer implements SearchResultFormatterInterf
         }
     }
 
+    /**
+     * @return string[] Rootline page titles from site root to the given page
+     */
+    private function resolveRootline(int $pageUid): array
+    {
+        $titles = [];
+        $visited = [];
+        $currentPid = $pageUid;
+
+        while ($currentPid > 0 && !isset($visited[$currentPid])) {
+            $visited[$currentPid] = true;
+
+            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
+                ->getQueryBuilderForTable('pages');
+
+            $row = $queryBuilder
+                ->select('uid', 'title', 'pid')
+                ->from('pages')
+                ->where(
+                    $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($currentPid, Connection::PARAM_INT)),
+                )
+                ->executeQuery()
+                ->fetchAssociative();
+
+            if ($row === false) {
+                break;
+            }
+
+            $titles[] = (string) ($row['title'] ?? '');
+            $currentPid = (int) ($row['pid'] ?? 0);
+        }
+
+        // Return root-to-leaf order
+        return array_reverse($titles);
+    }
+
     protected function getRecordsForIndexing(IndexingContext $context): iterable
     {
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
@@ -159,7 +197,23 @@ class PageIndexer extends AbstractIndexer implements SearchResultFormatterInterf
             icon: $this->getIcon($this->getType()),
             date: $this->parseDate($solrDoc),
             score: (float) ($solrDoc['score'] ?? 0.0),
+            rootline: $this->parseRootline($solrDoc),
         );
+    }
+
+    /**
+     * @return string[]|null
+     */
+    private function parseRootline(array $solrDoc): ?array
+    {
+        if (empty($solrDoc['rootline_s'])) {
+            return null;
+        }
+
+        $parts = explode(' | ', (string) $solrDoc['rootline_s']);
+        $filtered = array_values(array_filter(array_map('trim', $parts)));
+
+        return $filtered !== [] ? $filtered : null;
     }
 
     public function getIcon(string $type): string

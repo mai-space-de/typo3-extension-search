@@ -10,6 +10,7 @@ use Maispace\MaiSearch\Domain\Dto\SearchResult;
 use Maispace\MaiSearch\Domain\Solr\ConnectionFactory;
 use Maispace\MaiSearch\Service\ResultFormatterRegistry;
 use TYPO3\CMS\Core\SingletonInterface;
+use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
 
 class SearchService implements SingletonInterface
 {
@@ -21,13 +22,13 @@ class SearchService implements SingletonInterface
     /**
      * @return SearchResult[]
      */
-    public function search(string $query, int $limit = 20, int $offset = 0): array
+    public function search(string $query, int $limit = 20, int $offset = 0, ?SiteLanguage $language = null): array
     {
         if (trim($query) === '') {
             return [];
         }
 
-        $connection = $this->connectionFactory->getConnection();
+        $connection = $this->connectionFactory->getConnection($language);
         $solrQuery = new Query();
         $solrQuery->setQuery($query);
         $solrQuery->setRows($limit);

@@ -11,11 +11,13 @@
     ],
     "require": {
         "php": "^8.2",
+        "apache-solr-for-typo3/solr": "^14.0@alpha",
         "typo3/cms-core": "^14.1",
+        "typo3/cms-dashboard": "^14.1",
         "typo3/cms-extbase": "^14.1",
         "typo3/cms-fluid": "^14.1",
         "typo3/cms-scheduler": "^14.1",
-        "apache-solr-for-typo3/solr": "^14.0@alpha"
+        "maispace/mai-base": "@dev"
     },
     "require-dev": {
         "armin/editorconfig-cli": "^2.1",
@@ -68,6 +70,12 @@
         "test": "phpunit --configuration phpunit.xml.dist",
         "test:unit": "phpunit --configuration phpunit.xml.dist --testsuite Unit"
     },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../typo3-extension-base"
+        }
+    ],
     "config": {
         "allow-plugins": {
             "typo3/cms-composer-installers": true,

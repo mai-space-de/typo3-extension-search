@@ -1,0 +1,125 @@
+<html
+    xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+    xmlns:be="http://typo3.org/ns/TYPO3/CMS/Backend/ViewHelpers"
+    data-namespace-typo3-fluid="true"
+>
+<be:pageRenderer />
+
+<be:moduleLayout>
+    <f:render section="Content" />
+</be:moduleLayout>
+
+<f:section name="Content">
+    <div class="module-body">
+        <h1><f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.title" /></h1>
+
+        <div class="row" style="margin-bottom: 2em;">
+            <div class="col-md-4">
+                <div class="panel panel-default">
+                    <div class="panel-body text-center">
+                        <h2>{coreCount}</h2>
+                        <span class="label label-info">
+                            <f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.solrCores" />
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="panel panel-default">
+                    <div class="panel-body text-center">
+                        <h2>{indexerCount}</h2>
+                        <span class="label label-success">
+                            <f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.indexers" />
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="panel panel-default">
+                    <div class="panel-body text-center">
+                        <h2>
+                            <f:if condition="{coreMapping}">
+                                <f:then>{coreMapping -> f:count()}</f:then>
+                                <f:else>1</f:else>
+                            </f:if>
+                        </h2>
+                        <span class="label label-warning">
+                            <f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.languages" />
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <h2><f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.actions.title" /></h2>
+
+        <div style="margin-bottom: 2em;">
+            <f:link.action action="reindex" class="btn btn-primary" title="{f:translate(key: 'LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.reindex.title')}">
+                <core:icon identifier="actions-refresh" />
+                <f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.reindex.button" />
+            </f:link.action>
+
+            <f:link.action action="clear" class="btn btn-danger" style="margin-left: 0.5em;"
+                           onclick="return confirm('{f:translate(key: \'LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.clear.confirm\')}')"
+                           title="{f:translate(key: 'LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.clear.title')}">
+                <core:icon identifier="actions-delete" />
+                <f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.clear.button" />
+            </f:link.action>
+        </div>
+
+        <h2><f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.coreMapping.title" /></h2>
+
+        <f:if condition="{coreMapping}">
+            <f:then>
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th><f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.coreMapping.language" /></th>
+                            <th><f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.coreMapping.core" /></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <f:for each="{coreMapping}" as="core" key="languageCode">
+                            <tr>
+                                <td>{languageCode}</td>
+                                <td><code>{core}</code></td>
+                            </tr>
+                        </f:for>
+                    </tbody>
+                </table>
+            </f:then>
+            <f:else>
+                <div class="alert alert-info">
+                    <f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.noCoreMapping" />
+                </div>
+            </f:else>
+        </f:if>
+
+        <h2><f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.indexerTypes.title" /></h2>
+
+        <f:if condition="{indexerTypes}">
+            <f:then>
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th><f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.indexerTypes.type" /></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <f:for each="{indexerTypes}" as="type">
+                            <tr>
+                                <td><span class="label label-default">{type}</span></td>
+                            </tr>
+                        </f:for>
+                    </tbody>
+                </table>
+            </f:then>
+            <f:else>
+                <div class="alert alert-warning">
+                    <f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.noIndexers" />
+                </div>
+            </f:else>
+        </f:if>
+    </div>
+</f:section>
+</html>

@@ -40,6 +40,36 @@ class ConnectionFactory implements SingletonInterface
             $core = $solrSettings['coreMapping'][$languageCode] ?? $core;
         }
 
+        return $this->buildConnection($core, $solrSettings);
+    }
+
+    /**
+     * Resolves a Solr connection via a language code (e.g. 'de', 'en') rather than a SiteLanguage object.
+     * Useful for scheduler tasks and CLI commands where no frontend request exists.
+     */
+    public function getConnectionForLanguageCode(string $languageCode): SolrConnection
+    {
+        $solrSettings = $this->settings['solr'] ?? [];
+        $core = $solrSettings['coreMapping'][$languageCode] ?? ($solrSettings['core'] ?? self::DEFAULT_CORE);
+
+        return $this->buildConnection($core, $solrSettings);
+    }
+
+    /**
+     * @return array<string, string> language code → core name (e.g. 'de' → 'core_de')
+     */
+    public function getCoreMapping(): array
+    {
+        $solrSettings = $this->settings['solr'] ?? [];
+
+        return $solrSettings['coreMapping'] ?? [];
+    }
+
+    /**
+     * @param array<string, mixed> $solrSettings
+     */
+    protected function buildConnection(string $core, array $solrSettings): SolrConnection
+    {
         $host = $solrSettings['host'] ?? self::DEFAULT_HOST;
         $port = (int) ($solrSettings['port'] ?? self::DEFAULT_PORT);
         $path = $solrSettings['path'] ?? self::DEFAULT_PATH;

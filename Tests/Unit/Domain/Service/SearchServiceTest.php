@@ -15,6 +15,7 @@ use Maispace\MaiSearch\Domain\Solr\ConnectionFactory;
 use Maispace\MaiSearch\Service\ResultFormatterRegistry;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
 
 class SearchServiceTest extends TestCase
 {
@@ -295,5 +296,37 @@ class SearchServiceTest extends TestCase
         $results = $this->searchService->search('test');
 
         self::assertSame([], $results);
+    }
+
+    #[Test]
+    public function searchPassesSiteLanguageToConnectionFactory(): void
+    {
+        $language = $this->createMock(SiteLanguage::class);
+        $locale = new \TYPO3\CMS\Core\Localization\Locale('de');
+        $language->method('getLocale')->willReturn($locale);
+
+        $response = $this->createResponseAdapter([]);
+
+        $this->connectionFactory
+            ->expects(self::once())
+            ->method('getConnection')
+            ->with($language)
+            ->willReturn($this->mockSolrConnection($response));
+
+        $this->searchService->search('test', 20, 0, $language);
+    }
+
+    #[Test]
+    public function searchDoesNotPassNullLanguageToConnectionFactory(): void
+    {
+        $response = $this->createResponseAdapter([]);
+
+        $this->connectionFactory
+            ->expects(self::once())
+            ->method('getConnection')
+            ->with(null)
+            ->willReturn($this->mockSolrConnection($response));
+
+        $this->searchService->search('test');
     }
 }
