@@ -6,7 +6,6 @@ namespace Maispace\MaiSearch\Controller\Backend;
 
 use Maispace\MaiBase\Controller\Backend\AbstractBackendController;
 use Maispace\MaiBase\Controller\Traits\ResponseHelpersTrait;
-use Maispace\MaiSearch\Domain\Model\IndexingContext;
 use Maispace\MaiSearch\Domain\Service\IndexManagementService;
 use Maispace\MaiSearch\Domain\Solr\ConnectionFactory;
 use Maispace\MaiSearch\Service\IndexerRegistry;
@@ -14,7 +13,6 @@ use Psr\Http\Message\ResponseInterface;
 use TYPO3\CMS\Backend\Attribute\AsController;
 use TYPO3\CMS\Backend\Template\ModuleTemplateFactory;
 use TYPO3\CMS\Core\Imaging\IconFactory;
-use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 #[AsController]
 class SearchBackendController extends AbstractBackendController
@@ -48,11 +46,14 @@ class SearchBackendController extends AbstractBackendController
             $indexerTypes[] = $indexer->getType();
         }
 
+        $indexStats = $this->indexManagementService->getIndexStats();
+
         $this->assignMultiple($moduleTemplate, [
             'coreMapping' => $coreMapping,
             'coreCount' => $coreMapping === [] ? 1 : count($coreMapping),
             'indexerTypes' => $indexerTypes,
             'indexerCount' => count($indexerTypes),
+            'indexStats' => $indexStats,
         ]);
 
         return $this->renderModuleResponse($moduleTemplate, 'Index');
@@ -60,38 +61,11 @@ class SearchBackendController extends AbstractBackendController
 
     public function reindexAction(): ResponseInterface
     {
-        $coreMapping = $this->connectionFactory->getCoreMapping();
-        $indexers = $this->indexerRegistry->getAll();
-
         try {
-            // If no core mapping is configured, fall back to a single default-core reindex
-            if ($coreMapping === []) {
-                $context = GeneralUtility::makeInstance(
-                    IndexingContext::class,
-                    'core_en',
-                    100,
-                    0,
-                );
+            $coreMapping = $this->connectionFactory->getCoreMapping();
+            $indexers = $this->indexerRegistry->getAll();
 
-                foreach ($indexers as $indexer) {
-                    $indexer->indexAll($context);
-                }
-            } else {
-                // Iterate over each configured language core and reindex all records
-                foreach ($coreMapping as $languageCode => $core) {
-                    $context = GeneralUtility::makeInstance(
-                        IndexingContext::class,
-                        $core,
-                        100,
-                        0,
-                        $languageCode,
-                    );
-
-                    foreach ($indexers as $indexer) {
-                        $indexer->indexAll($context);
-                    }
-                }
-            }
+            $this->indexManagementService->reindexAll();
 
             $this->flashSuccess(
                 sprintf(
@@ -115,7 +89,6 @@ class SearchBackendController extends AbstractBackendController
             $coreMapping = $this->connectionFactory->getCoreMapping();
 
             if ($coreMapping === []) {
-                // Clear default core
                 $this->indexManagementService->clearIndex();
             } else {
                 $connection = $this->connectionFactory->getConnection();

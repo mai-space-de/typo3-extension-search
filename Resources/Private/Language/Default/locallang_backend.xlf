@@ -15,6 +15,9 @@
             <trans-unit id="index.languages">
                 <source>Languages Indexed</source>
             </trans-unit>
+            <trans-unit id="index.totalDocuments">
+                <source>Indexed Documents</source>
+            </trans-unit>
             <trans-unit id="index.actions.title">
                 <source>Actions</source>
             </trans-unit>
@@ -32,6 +35,24 @@
             </trans-unit>
             <trans-unit id="index.clear.confirm">
                 <source>Are you sure you want to clear the entire search index? This action cannot be undone.</source>
+            </trans-unit>
+            <trans-unit id="index.inspect.title">
+                <source>Index Inspection</source>
+            </trans-unit>
+            <trans-unit id="index.inspect.coreLabel">
+                <source>Core: %1$s (%2$s)</source>
+            </trans-unit>
+            <trans-unit id="index.inspect.documentsInCore">
+                <source>Total documents: %1$d</source>
+            </trans-unit>
+            <trans-unit id="index.inspect.type">
+                <source>Document Type</source>
+            </trans-unit>
+            <trans-unit id="index.inspect.count">
+                <source>Count</source>
+            </trans-unit>
+            <trans-unit id="index.inspect.noData">
+                <source>No inspection data available. Solr may be unreachable or the index is empty.</source>
             </trans-unit>
             <trans-unit id="index.coreMapping.title">
                 <source>Core Mapping</source>

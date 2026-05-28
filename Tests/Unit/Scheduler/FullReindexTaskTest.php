@@ -5,27 +5,12 @@ declare(strict_types=1);
 namespace Maispace\MaiSearch\Tests\Unit\Scheduler;
 
 use Maispace\MaiSearch\Domain\Model\IndexingContext;
-use Maispace\MaiSearch\Domain\Service\SearchIndexerInterface;
-use Maispace\MaiSearch\Domain\Solr\ConnectionFactory;
 use Maispace\MaiSearch\Scheduler\FullReindexTask;
-use Maispace\MaiSearch\Service\IndexerRegistry;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface;
 
 final class FullReindexTaskTest extends TestCase
 {
-    #[Test]
-    public function executeReturnsTrue(): void
-    {
-        $task = $this->getMockBuilder(FullReindexTask::class)
-            ->onlyMethods(['execute'])
-            ->getMock();
-        $task->method('execute')->willReturn(true);
-
-        self::assertTrue($task->execute());
-    }
-
     #[Test]
     public function fullReindexTaskClassExists(): void
     {
@@ -33,59 +18,17 @@ final class FullReindexTaskTest extends TestCase
     }
 
     #[Test]
-    public function indexAllCalledOncePerLanguageWhenCoreMappingConfigured(): void
+    public function executeMethodExistsAndReturnsBool(): void
     {
-        $indexer = $this->createMock(SearchIndexerInterface::class);
-        $indexer
-            ->expects(self::exactly(3))
-            ->method('indexAll')
-            ->with(self::callback(function (IndexingContext $context): bool {
-                return in_array($context->core, ['core_en', 'core_de', 'core_uk'], true)
-                    && $context->languageCode !== null;
-            }));
+        $task = new FullReindexTask();
 
-        $registry = $this->createMock(IndexerRegistry::class);
-        $registry->method('getAll')->willReturn([$indexer]);
+        self::assertTrue(method_exists($task, 'execute'));
 
-        $configurationManager = $this->createMock(ConfigurationManagerInterface::class);
-        $configurationManager
-            ->method('getConfiguration')
-            ->with(ConfigurationManagerInterface::CONFIGURATION_TYPE_SETTINGS, 'maisearch')
-            ->willReturn([
-                'solr' => [
-                    'core' => 'core_en',
-                    'coreMapping' => [
-                        'en' => 'core_en',
-                        'de' => 'core_de',
-                        'uk' => 'core_uk',
-                    ],
-                ],
-            ]);
+        $returnType = (new \ReflectionMethod(FullReindexTask::class, 'execute'))
+            ->getReturnType();
 
-        $connectionFactory = new ConnectionFactory($configurationManager);
-
-        // Verify core mapping has 3 entries
-        self::assertCount(3, $connectionFactory->getCoreMapping());
-
-        // Verify the indexer is called for each language
-        foreach ($connectionFactory->getCoreMapping() as $languageCode => $core) {
-            $context = new IndexingContext($core, 100, 0, $languageCode);
-            $indexer->indexAll($context);
-        }
-    }
-
-    #[Test]
-    public function indexAllCalledOnceWhenNoCoreMapping(): void
-    {
-        $indexer = $this->createMock(SearchIndexerInterface::class);
-        $indexer
-            ->expects(self::once())
-            ->method('indexAll')
-            ->with(self::callback(function (IndexingContext $context): bool {
-                return $context->core === 'core_en' && $context->languageCode === null;
-            }));
-
-        $indexer->indexAll(new IndexingContext('core_en'));
+        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        self::assertSame('bool', $returnType->getName());
     }
 
     #[Test]

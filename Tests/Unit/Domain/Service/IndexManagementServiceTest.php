@@ -4,17 +4,24 @@ declare(strict_types=1);
 
 namespace Maispace\MaiSearch\Tests\Unit\Domain\Service;
 
+use ApacheSolrForTypo3\Solr\Domain\Search\Query\Query;
 use ApacheSolrForTypo3\Solr\System\Solr\Document\Document;
+use ApacheSolrForTypo3\Solr\System\Solr\ResponseAdapter;
+use ApacheSolrForTypo3\Solr\System\Solr\Service\SolrReadService;
 use ApacheSolrForTypo3\Solr\System\Solr\Service\SolrWriteService;
 use ApacheSolrForTypo3\Solr\System\Solr\SolrConnection;
+use Maispace\MaiSearch\Domain\Model\IndexingContext;
 use Maispace\MaiSearch\Domain\Service\IndexManagementService;
+use Maispace\MaiSearch\Domain\Service\SearchIndexerInterface;
 use Maispace\MaiSearch\Domain\Service\VectorEmbeddingInterface;
 use Maispace\MaiSearch\Domain\Solr\ConnectionFactory;
 use Maispace\MaiSearch\Domain\Solr\SchemaManager;
+use Maispace\MaiSearch\Service\IndexerRegistry;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 final class IndexManagementServiceTest extends TestCase
 {
@@ -48,6 +55,11 @@ final class IndexManagementServiceTest extends TestCase
     private function createServiceWithEmbedding(VectorEmbeddingInterface $embedding): IndexManagementService
     {
         return new IndexManagementService($this->connectionFactory, $embedding);
+    }
+
+    private function createServiceWithRegistry(IndexerRegistry $registry): IndexManagementService
+    {
+        return new IndexManagementService($this->connectionFactory, null, $registry);
     }
 
     // ── addDocument() — without embedding service ────────────────────────────
@@ -294,6 +306,186 @@ final class IndexManagementServiceTest extends TestCase
             ->with('*:*');
 
         $this->service->clearIndex();
+    }
+
+    // ── reindexAll() ─────────────────────────────────────────────────────────
+
+    #[Test]
+    public function reindexAllCallsIndexAllOnEachIndexerPerCore(): void
+    {
+        $indexer = $this->createMock(SearchIndexerInterface::class);
+        $indexer->method('getType')->willReturn('page');
+        $indexer
+            ->expects(self::exactly(3))
+            ->method('indexAll')
+            ->with(self::isInstanceOf(IndexingContext::class));
+
+        $indexerRegistry = $this->createMock(IndexerRegistry::class);
+        $indexerRegistry->method('getAll')->willReturn([$indexer]);
+
+        $this->connectionFactory
+            ->method('getCoreMapping')
+            ->willReturn([
+                'en' => 'core_en',
+                'de' => 'core_de',
+                'uk' => 'core_uk',
+            ]);
+
+        $service = $this->createServiceWithRegistry($indexerRegistry);
+        $service->reindexAll();
+    }
+
+    #[Test]
+    public function reindexAllUsesDefaultCoreWhenNoMapping(): void
+    {
+        $indexer = $this->createMock(SearchIndexerInterface::class);
+        $indexer->method('getType')->willReturn('page');
+        $indexer
+            ->expects(self::once())
+            ->method('indexAll')
+            ->with(self::callback(function (IndexingContext $context): bool {
+                return $context->core === 'core_en';
+            }));
+
+        $indexerRegistry = $this->createMock(IndexerRegistry::class);
+        $indexerRegistry->method('getAll')->willReturn([$indexer]);
+
+        $this->connectionFactory
+            ->method('getCoreMapping')
+            ->willReturn([]);
+
+        $service = $this->createServiceWithRegistry($indexerRegistry);
+        $service->reindexAll();
+    }
+
+    #[Test]
+    public function reindexAllDoesNothingWhenRegistryNotAvailable(): void
+    {
+        $this->connectionFactory
+            ->expects(self::never())
+            ->method('getCoreMapping');
+
+        $this->service->reindexAll();
+    }
+
+    // ── getIndexStats() ──────────────────────────────────────────────────────
+
+    #[Test]
+    public function getIndexStatsReturnsTotalDocumentsAndTypes(): void
+    {
+        $readService = $this->createMock(SolrReadService::class);
+
+        $json = json_encode([
+            'response' => ['numFound' => 42, 'start' => 0, 'docs' => []],
+            'facet_counts' => [
+                'facet_fields' => [
+                    'type_s' => ['page', 30, 'news', 12],
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $response = new ResponseAdapter($json, 200);
+
+        $readService
+            ->method('search')
+            ->with(self::isInstanceOf(Query::class))
+            ->willReturn($response);
+
+        $solrConnection = $this->createMock(SolrConnection::class);
+        $solrConnection->method('getReadService')->willReturn($readService);
+        $solrConnection->method('getWriteService')->willReturn($this->writeService);
+
+        $connectionFactory = $this->createMock(ConnectionFactory::class);
+        $connectionFactory->method('getCoreMapping')->willReturn(['en' => 'core_en']);
+        $connectionFactory->method('getConnectionForLanguageCode')->with('en')->willReturn($solrConnection);
+
+        $service = new IndexManagementService($connectionFactory);
+        $stats = $service->getIndexStats();
+
+        self::assertSame(42, $stats['totalDocuments']);
+        self::assertArrayHasKey('en', $stats['cores']);
+        self::assertSame('core_en', $stats['cores']['en']['core']);
+        self::assertSame(42, $stats['cores']['en']['totalDocuments']);
+        self::assertSame(['page' => 30, 'news' => 12], $stats['cores']['en']['types']);
+    }
+
+    #[Test]
+    public function getIndexStatsHandlesEmptyIndex(): void
+    {
+        $readService = $this->createMock(SolrReadService::class);
+
+        $json = json_encode([
+            'response' => ['numFound' => 0, 'start' => 0, 'docs' => []],
+        ], JSON_THROW_ON_ERROR);
+
+        $response = new ResponseAdapter($json, 200);
+
+        $readService->method('search')->willReturn($response);
+
+        $solrConnection = $this->createMock(SolrConnection::class);
+        $solrConnection->method('getReadService')->willReturn($readService);
+        $solrConnection->method('getWriteService')->willReturn($this->writeService);
+
+        $connectionFactory = $this->createMock(ConnectionFactory::class);
+        $connectionFactory->method('getCoreMapping')->willReturn([]);
+        $connectionFactory->method('getConnectionForLanguageCode')->with('en')->willReturn($solrConnection);
+
+        $service = new IndexManagementService($connectionFactory);
+        $stats = $service->getIndexStats();
+
+        self::assertSame(0, $stats['totalDocuments']);
+    }
+
+    #[Test]
+    public function getIndexStatsHandlesSolrUnreachable(): void
+    {
+        $connectionFactory = $this->createMock(ConnectionFactory::class);
+        $connectionFactory->method('getCoreMapping')->willReturn(['en' => 'core_en']);
+        $connectionFactory->method('getConnectionForLanguageCode')
+            ->willThrowException(new \RuntimeException('Solr unreachable'));
+
+        $service = new IndexManagementService($connectionFactory);
+        $stats = $service->getIndexStats();
+
+        self::assertSame(0, $stats['totalDocuments']);
+        self::assertSame(0, $stats['cores']['en']['totalDocuments']);
+        self::assertSame([], $stats['cores']['en']['types']);
+    }
+
+    #[Test]
+    public function getIndexStatsAggregatesAcrossMultipleCores(): void
+    {
+        $readService = $this->createMock(SolrReadService::class);
+
+        $json = json_encode([
+            'response' => ['numFound' => 10, 'start' => 0, 'docs' => []],
+            'facet_counts' => [
+                'facet_fields' => [
+                    'type_s' => ['page', 10],
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $response = new ResponseAdapter($json, 200);
+
+        $readService->method('search')->willReturn($response);
+
+        $solrConnection = $this->createMock(SolrConnection::class);
+        $solrConnection->method('getReadService')->willReturn($readService);
+        $solrConnection->method('getWriteService')->willReturn($this->writeService);
+
+        $connectionFactory = $this->createMock(ConnectionFactory::class);
+        $connectionFactory->method('getCoreMapping')->willReturn([
+            'en' => 'core_en',
+            'de' => 'core_de',
+        ]);
+        $connectionFactory->method('getConnectionForLanguageCode')->willReturn($solrConnection);
+
+        $service = new IndexManagementService($connectionFactory);
+        $stats = $service->getIndexStats();
+
+        self::assertSame(20, $stats['totalDocuments']);
+        self::assertCount(2, $stats['cores']);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

@@ -14,7 +14,7 @@
         <h1><f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.title" /></h1>
 
         <div class="row" style="margin-bottom: 2em;">
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="panel panel-default">
                     <div class="panel-body text-center">
                         <h2>{coreCount}</h2>
@@ -24,7 +24,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="panel panel-default">
                     <div class="panel-body text-center">
                         <h2>{indexerCount}</h2>
@@ -34,7 +34,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="panel panel-default">
                     <div class="panel-body text-center">
                         <h2>
@@ -45,6 +45,16 @@
                         </h2>
                         <span class="label label-warning">
                             <f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.languages" />
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="panel panel-default">
+                    <div class="panel-body text-center">
+                        <h2>{indexStats.totalDocuments}</h2>
+                        <span class="label label-primary">
+                            <f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.totalDocuments" />
                         </span>
                     </div>
                 </div>
@@ -67,11 +77,47 @@
             </f:link.action>
         </div>
 
+        <h2><f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.inspect.title" /></h2>
+
+        <f:if condition="{indexStats.cores}">
+            <f:then>
+                <f:for each="{indexStats.cores}" as="coreStats" key="languageCode">
+                    <h3><f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.inspect.coreLabel" arguments="{0: languageCode, 1: coreStats.core}" /></h3>
+                    <p>
+                        <f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.inspect.documentsInCore" arguments="{0: coreStats.totalDocuments}" />
+                    </p>
+                    <f:if condition="{coreStats.types}">
+                        <table class="table table-striped table-hover" style="max-width: 600px;">
+                            <thead>
+                                <tr>
+                                    <th><f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.inspect.type" /></th>
+                                    <th class="text-right"><f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.inspect.count" /></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <f:for each="{coreStats.types}" as="count" key="type">
+                                    <tr>
+                                        <td><span class="label label-default">{type}</span></td>
+                                        <td class="text-right">{count}</td>
+                                    </tr>
+                                </f:for>
+                            </tbody>
+                        </table>
+                    </f:if>
+                </f:for>
+            </f:then>
+            <f:else>
+                <div class="alert alert-info">
+                    <f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.inspect.noData" />
+                </div>
+            </f:else>
+        </f:if>
+
         <h2><f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.coreMapping.title" /></h2>
 
         <f:if condition="{coreMapping}">
             <f:then>
-                <table class="table table-striped table-hover">
+                <table class="table table-striped table-hover" style="max-width: 600px;">
                     <thead>
                         <tr>
                             <th><f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.coreMapping.language" /></th>
@@ -99,7 +145,7 @@
 
         <f:if condition="{indexerTypes}">
             <f:then>
-                <table class="table table-striped table-hover">
+                <table class="table table-striped table-hover" style="max-width: 600px;">
                     <thead>
                         <tr>
                             <th><f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.indexerTypes.type" /></th>
