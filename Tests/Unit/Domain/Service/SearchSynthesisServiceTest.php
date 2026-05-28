@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Maispace\MaiSearch\Tests\Unit\Domain\Service;
 
 use Maispace\MaiSearch\Domain\Dto\SearchResult;
+use Maispace\MaiSearch\Domain\Dto\SourceReference;
+use Maispace\MaiSearch\Domain\Dto\SynthesisResult;
 use Maispace\MaiSearch\Domain\Service\SearchSynthesisService;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -26,38 +28,44 @@ final class SearchSynthesisServiceTest extends TestCase
     // ── disabled-flag short-circuit ──────────────────────────────────────────
 
     #[Test]
-    public function synthesiseReturnsEmptyStringWhenRagDisabled(): void
+    public function synthesiseReturnsEmptyResultWhenRagDisabled(): void
     {
         $this->requestFactory->expects(self::never())->method('request');
 
         $service = new SearchSynthesisService($this->requestFactory, 'sk-test');
         $result = $service->synthesise('query', [$this->makeResult()], false);
 
-        self::assertSame('', $result);
+        self::assertInstanceOf(SynthesisResult::class, $result);
+        self::assertSame('', $result->answer);
+        self::assertSame([], $result->sources);
     }
 
     // ── empty-context fallback ───────────────────────────────────────────────
 
     #[Test]
-    public function synthesiseReturnsEmptyStringForEmptyContext(): void
+    public function synthesiseReturnsEmptyResultForEmptyContext(): void
     {
         $this->requestFactory->expects(self::never())->method('request');
 
         $service = new SearchSynthesisService($this->requestFactory, 'sk-test');
         $result = $service->synthesise('query', [], true);
 
-        self::assertSame('', $result);
+        self::assertInstanceOf(SynthesisResult::class, $result);
+        self::assertSame('', $result->answer);
+        self::assertSame([], $result->sources);
     }
 
     #[Test]
-    public function synthesiseReturnsEmptyStringWhenApiKeyIsEmpty(): void
+    public function synthesiseReturnsEmptyResultWhenApiKeyIsEmpty(): void
     {
         $this->requestFactory->expects(self::never())->method('request');
 
         $service = new SearchSynthesisService($this->requestFactory, '');
         $result = $service->synthesise('query', [$this->makeResult()], true);
 
-        self::assertSame('', $result);
+        self::assertInstanceOf(SynthesisResult::class, $result);
+        self::assertSame('', $result->answer);
+        self::assertSame([], $result->sources);
     }
 
     // ── prompt assembly ──────────────────────────────────────────────────────
@@ -244,7 +252,76 @@ final class SearchSynthesisServiceTest extends TestCase
         $service = new SearchSynthesisService($this->requestFactory, 'sk-test');
         $result = $service->synthesise('What is TYPO3?', [$this->makeResult()], true);
 
-        self::assertSame('TYPO3 is a free, open-source CMS.', $result);
+        self::assertInstanceOf(SynthesisResult::class, $result);
+        self::assertSame('TYPO3 is a free, open-source CMS.', $result->answer);
+    }
+
+    // ── source references ────────────────────────────────────────────────────
+
+    #[Test]
+    public function synthesiseReturnsSourceReferencesForContext(): void
+    {
+        $body = $this->makeBodyMock(json_encode([
+            'choices' => [['message' => ['content' => 'Answer text.']]],
+        ], JSON_THROW_ON_ERROR));
+        $response = $this->makeResponseMock(200, $body);
+
+        $this->requestFactory->method('request')->willReturn($response);
+
+        $context = [
+            $this->makeResult(title: 'First', snippet: 'Snippet 1', url: '/first', type: 'news'),
+            $this->makeResult(title: 'Second', snippet: 'Snippet 2', url: '/second', type: 'page'),
+        ];
+
+        $service = new SearchSynthesisService($this->requestFactory, 'sk-test');
+        $result = $service->synthesise('query', $context, true);
+
+        self::assertCount(2, $result->sources);
+
+        self::assertInstanceOf(SourceReference::class, $result->sources[0]);
+        self::assertSame('First', $result->sources[0]->title);
+        self::assertSame('/first', $result->sources[0]->url);
+        self::assertSame('news', $result->sources[0]->type);
+        self::assertSame(0.9, $result->sources[0]->score);
+
+        self::assertInstanceOf(SourceReference::class, $result->sources[1]);
+        self::assertSame('Second', $result->sources[1]->title);
+        self::assertSame('/second', $result->sources[1]->url);
+        self::assertSame('page', $result->sources[1]->type);
+    }
+
+    #[Test]
+    public function synthesiseSourceReferencesPreserveAllContextItems(): void
+    {
+        $body = $this->makeBodyMock(json_encode([
+            'choices' => [['message' => ['content' => 'ok']]],
+        ], JSON_THROW_ON_ERROR));
+        $response = $this->makeResponseMock(200, $body);
+
+        $this->requestFactory->method('request')->willReturn($response);
+
+        $context = [
+            $this->makeResult(title: 'A', url: '/a', type: 'news'),
+            $this->makeResult(title: 'B', url: '/b', type: 'faq'),
+            $this->makeResult(title: 'C', url: '/c', type: 'events'),
+        ];
+
+        $service = new SearchSynthesisService($this->requestFactory, 'sk-test');
+        $result = $service->synthesise('query', $context, true);
+
+        self::assertCount(3, $result->sources);
+        self::assertSame('/a', $result->sources[0]->url);
+        self::assertSame('/b', $result->sources[1]->url);
+        self::assertSame('/c', $result->sources[2]->url);
+    }
+
+    #[Test]
+    public function emptySynthesisResultHasEmptyAnswerAndNoSources(): void
+    {
+        $empty = SynthesisResult::empty();
+
+        self::assertSame('', $empty->answer);
+        self::assertSame([], $empty->sources);
     }
 
     // ── error handling ───────────────────────────────────────────────────────
@@ -284,9 +361,10 @@ final class SearchSynthesisServiceTest extends TestCase
         string $title = 'Test Title',
         string $snippet = 'Test snippet content',
         string $url = '/test-url',
+        string $type = 'page',
     ): SearchResult {
         return new SearchResult(
-            type: 'page',
+            type: $type,
             title: $title,
             snippet: $snippet,
             url: $url,

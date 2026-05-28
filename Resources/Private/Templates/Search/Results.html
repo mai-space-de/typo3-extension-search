@@ -16,6 +16,32 @@
     </div>
 </f:form>
 
+<f:if condition="{synthesisResult}">
+    <f:if condition="{synthesisResult.answer}">
+        <div class="search-synthesis">
+            <div class="search-synthesis__answer">
+                {synthesisResult.answer}
+            </div>
+            <f:if condition="{synthesisResult.sources}">
+                <div class="search-synthesis__sources">
+                    <h4 class="search-synthesis__sources-heading">
+                        <f:translate key="search.synthesis.sources" default="Sources" />
+                    </h4>
+                    <ul class="search-synthesis__sources-list">
+                        <f:for each="{synthesisResult.sources}" as="source">
+                            <li class="search-synthesis__sources-item">
+                                <a href="{source.url}" class="search-synthesis__sources-link">
+                                    {source.title}
+                                </a>
+                            </li>
+                        </f:for>
+                    </ul>
+                </div>
+            </f:if>
+        </div>
+    </f:if>
+</f:if>
+
 <div class="search-results">
     <p class="search-results__count">
         <f:translate

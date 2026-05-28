@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Maispace\MaiSearch\Domain\Service;
 
 use Maispace\MaiSearch\Domain\Dto\SearchResult;
+use Maispace\MaiSearch\Domain\Dto\SourceReference;
+use Maispace\MaiSearch\Domain\Dto\SynthesisResult;
 use TYPO3\CMS\Core\Http\RequestFactory;
 
 /**
@@ -15,7 +17,7 @@ use TYPO3\CMS\Core\Http\RequestFactory;
  * system prompt and sent to the OpenAI Chat Completions API (`gpt-4o-mini`).
  * The returned answer is rendered as an "answer card" above the hit list.
  *
- * Short-circuits (returns '') when:
+ * Short-circuits (returns SynthesisResult::empty()) when:
  *  - $ragEnabled is false
  *  - The context chunk list is empty
  *  - The API key is empty
@@ -25,40 +27,71 @@ final class SearchSynthesisService
     private const string API_URL = 'https://api.openai.com/v1/chat/completions';
     private const int ERROR_CODE = 1748200001;
 
-    public function __construct(
-        private readonly RequestFactory $requestFactory,
-        private readonly string $apiKey,
-        private readonly string $model = 'gpt-4o-mini',
-    ) {}
+    private readonly string $apiKey;
+    private readonly string $model;
 
     /**
-     * Synthesise an answer from the given search context.
-     *
-     * @param string         $query     The user's original search query
-     * @param SearchResult[] $context   Top-ranked search results to use as context chunks
-     * @param bool           $ragEnabled Whether RAG synthesis is enabled
-     *
-     * @return string Synthesised answer, or '' when synthesis is skipped or fails
+     * @param string|null $apiKey OpenAI API key. When null, falls back to
+     *                            $GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS']['mai_translate']['openAiApiKey']
+     * @param string|null $model  OpenAI model name. When null, falls back to
+     *                            $GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS']['mai_translate']['openAiModel']
      */
-    public function synthesise(string $query, array $context, bool $ragEnabled = true): string
+    public function __construct(
+        private readonly RequestFactory $requestFactory,
+        ?string $apiKey = null,
+        ?string $model = null,
+    ) {
+        $this->apiKey = $apiKey ?? $this->resolveApiKey();
+        $this->model = $model ?? $this->resolveModel();
+    }
+
+    /**
+     * @param string         $query      The user's original search query
+     * @param SearchResult[] $context    Top-ranked search results to use as context
+     * @param bool           $ragEnabled Whether RAG synthesis is enabled
+     */
+    public function synthesise(string $query, array $context, bool $ragEnabled = true): SynthesisResult
     {
         if (!$ragEnabled) {
-            return '';
+            return SynthesisResult::empty();
         }
 
         if ($context === []) {
-            return '';
+            return SynthesisResult::empty();
         }
 
         if ($this->apiKey === '') {
-            return '';
+            return SynthesisResult::empty();
         }
 
         $prompt = $this->buildUserPrompt($query, $context);
+        $answer = $this->callApi($prompt);
+        $sources = $this->buildSources($context);
 
-        return $this->callApi($prompt);
+        return new SynthesisResult($answer, $sources);
     }
 
+    /**
+     * @param SearchResult[] $context
+     * @return SourceReference[]
+     */
+    private function buildSources(array $context): array
+    {
+        $sources = [];
+        foreach ($context as $result) {
+            $sources[] = new SourceReference(
+                title: $result->title,
+                url: $result->url,
+                type: $result->type,
+                score: $result->score,
+            );
+        }
+        return $sources;
+    }
+
+    /**
+     * @param SearchResult[] $context
+     */
     private function buildUserPrompt(string $query, array $context): string
     {
         $chunks = [];
@@ -115,5 +148,15 @@ final class SearchSynthesisService
         $data = json_decode($body, true, 512, JSON_THROW_ON_ERROR);
 
         return (string) ($data['choices'][0]['message']['content'] ?? '');
+    }
+
+    private function resolveApiKey(): string
+    {
+        return (string) ($GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS']['mai_translate']['openAiApiKey'] ?? '');
+    }
+
+    private function resolveModel(): string
+    {
+        return (string) ($GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS']['mai_translate']['openAiModel'] ?? 'gpt-4o-mini');
     }
 }

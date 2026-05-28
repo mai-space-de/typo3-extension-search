@@ -6,6 +6,7 @@ namespace Maispace\MaiSearch\Tests\Unit\Controller;
 
 use Maispace\MaiSearch\Controller\SearchController;
 use Maispace\MaiSearch\Domain\Service\SearchService;
+use Maispace\MaiSearch\Domain\Service\SearchSynthesisService;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
@@ -13,6 +14,18 @@ use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
 
 final class SearchControllerTest extends TestCase
 {
+    private SearchService $searchService;
+    private SearchSynthesisService $synthesisService;
+
+    protected function setUp(): void
+    {
+        $this->searchService = $this->createMock(SearchService::class);
+        $this->synthesisService = new SearchSynthesisService(
+            $this->createMock(\TYPO3\CMS\Core\Http\RequestFactory::class),
+            '',
+        );
+    }
+
     #[Test]
     public function controllerHasSearchServiceDependency(): void
     {
@@ -29,6 +42,24 @@ final class SearchControllerTest extends TestCase
 
         self::assertInstanceOf(\ReflectionNamedType::class, $serviceParam->getType());
         self::assertSame(SearchService::class, $serviceParam->getType()->getName());
+    }
+
+    #[Test]
+    public function controllerHasSynthesisServiceDependency(): void
+    {
+        $params = (new \ReflectionMethod(SearchController::class, '__construct'))
+            ->getParameters();
+
+        $names = array_map(static fn(\ReflectionParameter $p) => $p->getName(), $params);
+        self::assertContains('synthesisService', $names);
+
+        $serviceParam = current(array_filter(
+            $params,
+            static fn(\ReflectionParameter $p) => $p->getName() === 'synthesisService',
+        ));
+
+        self::assertInstanceOf(\ReflectionNamedType::class, $serviceParam->getType());
+        self::assertSame(SearchSynthesisService::class, $serviceParam->getType()->getName());
     }
 
     #[Test]
@@ -87,8 +118,7 @@ final class SearchControllerTest extends TestCase
     #[Test]
     public function resolveRagEnabledReturnsFalseByDefault(): void
     {
-        $searchService = $this->createMock(SearchService::class);
-        $controller = new SearchController($searchService);
+        $controller = new SearchController($this->searchService, $this->synthesisService);
 
         $method = new \ReflectionMethod(SearchController::class, 'resolveRagEnabled');
         self::assertFalse($method->invoke($controller));
@@ -97,10 +127,8 @@ final class SearchControllerTest extends TestCase
     #[Test]
     public function resolveRagEnabledReturnsTrueWhenSettingIsEnabled(): void
     {
-        $searchService = $this->createMock(SearchService::class);
-        $controller = new SearchController($searchService);
+        $controller = new SearchController($this->searchService, $this->synthesisService);
 
-        // Set settings via reflection to simulate TypoScript configuration
         $settingsProperty = new \ReflectionProperty(
             SearchController::class,
             'settings',
@@ -111,7 +139,6 @@ final class SearchControllerTest extends TestCase
         $method = new \ReflectionMethod(SearchController::class, 'resolveRagEnabled');
         self::assertTrue($method->invoke($controller));
 
-        // Also test with boolean true
         $settingsProperty->setValue($controller, ['ragEnabled' => true]);
         self::assertTrue($method->invoke($controller));
     }
@@ -119,8 +146,7 @@ final class SearchControllerTest extends TestCase
     #[Test]
     public function resolveRagEnabledReturnsFalseWhenExplicitlyDisabled(): void
     {
-        $searchService = $this->createMock(SearchService::class);
-        $controller = new SearchController($searchService);
+        $controller = new SearchController($this->searchService, $this->synthesisService);
 
         $settingsProperty = new \ReflectionProperty(
             SearchController::class,
@@ -132,7 +158,6 @@ final class SearchControllerTest extends TestCase
         $method = new \ReflectionMethod(SearchController::class, 'resolveRagEnabled');
         self::assertFalse($method->invoke($controller));
 
-        // Also test with boolean false
         $settingsProperty->setValue($controller, ['ragEnabled' => false]);
         self::assertFalse($method->invoke($controller));
     }
@@ -158,10 +183,8 @@ final class SearchControllerTest extends TestCase
     #[Test]
     public function resolveCurrentLanguageReturnsNullWhenNoLanguageInRequest(): void
     {
-        $searchService = $this->createMock(SearchService::class);
-        $controller = new SearchController($searchService);
+        $controller = new SearchController($this->searchService, $this->synthesisService);
 
-        // Set up a mock request without a language attribute
         $request = $this->createMock(\TYPO3\CMS\Extbase\Mvc\Request::class);
         $request->method('getAttribute')->with('language')->willReturn(null);
 
@@ -176,8 +199,7 @@ final class SearchControllerTest extends TestCase
     #[Test]
     public function resolveCurrentLanguageReturnsSiteLanguageWhenPresent(): void
     {
-        $searchService = $this->createMock(SearchService::class);
-        $controller = new SearchController($searchService);
+        $controller = new SearchController($this->searchService, $this->synthesisService);
 
         $language = $this->createMock(SiteLanguage::class);
 

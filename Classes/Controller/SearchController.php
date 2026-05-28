@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Maispace\MaiSearch\Controller;
 
 use Maispace\MaiSearch\Domain\Service\SearchService;
+use Maispace\MaiSearch\Domain\Service\SearchSynthesisService;
 use Psr\Http\Message\ResponseInterface;
 use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
 use TYPO3\CMS\Extbase\Mvc\Controller\ActionController;
@@ -13,6 +14,7 @@ class SearchController extends ActionController
 {
     public function __construct(
         private readonly SearchService $searchService,
+        private readonly SearchSynthesisService $synthesisService,
     ) {}
 
     public function formAction(): ResponseInterface
@@ -41,20 +43,21 @@ class SearchController extends ActionController
             $ragEnabled,
         );
 
+        $synthesisResult = $ragEnabled && $results !== []
+            ? $this->synthesisService->synthesise($query, $results, $ragEnabled)
+            : null;
+
         $this->view->assignMultiple([
             'query' => $query,
             'results' => $results,
             'count' => count($results),
             'ragEnabled' => $ragEnabled,
+            'synthesisResult' => $synthesisResult,
         ]);
 
         return $this->htmlResponse();
     }
 
-    /**
-     * Resolve the current language from the request attribute.
-     * Falls back to null when no language is available (CLI or backend context).
-     */
     private function resolveCurrentLanguage(): ?SiteLanguage
     {
         $language = $this->request->getAttribute('language');
@@ -62,10 +65,6 @@ class SearchController extends ActionController
         return $language instanceof SiteLanguage ? $language : null;
     }
 
-    /**
-     * Resolve the RAG-enabled flag from TypoScript settings.
-     * Defaults to disabled (false) when the setting is not configured.
-     */
     private function resolveRagEnabled(): bool
     {
         return (bool) ($this->settings['ragEnabled'] ?? false);
