@@ -20,7 +20,13 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  */
 class DataHandlerHook
 {
-    public function __construct(private readonly IndexerRegistry $indexerRegistry) {}
+    private readonly IndexerRegistry $indexerRegistry;
+
+    public function __construct(?IndexerRegistry $indexerRegistry = null)
+    {
+        $this->indexerRegistry = $indexerRegistry
+            ?? GeneralUtility::makeInstance(IndexerRegistry::class);
+    }
 
     /**
      * Called after a record was written to the database.
