@@ -31,6 +31,9 @@ services:
   Maispace\MaiSearch\Controller\SearchController:
     public: true
 
+  Maispace\MaiSearch\Controller\Backend\SearchBackendController:
+    public: true
+
   Maispace\MaiSearch\Scheduler\FullReindexTask:
     public: true
 
