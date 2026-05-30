@@ -2,6 +2,17 @@
       data-namespace-typo3-fluid="true">
 
 <f:form action="results" method="post" name="search" class="search-form">
+    <f:form.validationResults>
+        <f:if condition="{validationResults.flattenedErrors}">
+            <div class="search-form__errors" role="alert">
+                <f:for each="{validationResults.flattenedErrors}" as="errors" key="propertyName">
+                    <f:for each="{errors}" as="error">
+                        <p class="search-form__error">{error.message}</p>
+                    </f:for>
+                </f:for>
+            </div>
+        </f:if>
+    </f:form.validationResults>
     <div class="search-form__field">
         <f:form.textfield
             name="query"
