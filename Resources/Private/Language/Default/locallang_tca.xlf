@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+    <file source-language="en" datatype="plaintext" original="messages" date="2026-05-30T00:00:00Z" product-name="mai_search">
+        <header/>
+        <body>
+            <trans-unit id="plugin.search.title">
+                <source>Search: Results</source>
+            </trans-unit>
+            <trans-unit id="ctype.search">
+                <source>Search: Results</source>
+            </trans-unit>
+        </body>
+    </file>
+</xliff>
