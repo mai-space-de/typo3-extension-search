@@ -53,7 +53,7 @@
     </f:if>
 </f:if>
 
-<div class="search-results">
+<div class="search-results" data-testid="search-results">
     <p class="search-results__count">
         <f:translate
             key="search.results.count"
@@ -66,7 +66,7 @@
         <f:then>
             <ol class="search-results__list">
                 <f:for each="{results}" as="result">
-                    <li class="search-results__item">
+                    <li class="search-results__item" data-testid="search-result-item">
                         <a href="{result.url}" class="search-results__link">
                             <span class="search-results__icon">{result.icon}</span>
                             <span class="search-results__title">{result.title}</span>
@@ -85,7 +85,7 @@
             </ol>
         </f:then>
         <f:else>
-            <p class="search-results__none">
+            <p class="search-results__none" data-testid="search-no-results">
                 <f:translate key="search.results.none" default="No results found." />
             </p>
         </f:else>

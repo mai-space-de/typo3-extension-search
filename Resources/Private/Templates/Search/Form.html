@@ -19,11 +19,12 @@
             value="{query}"
             placeholder="{f:translate(key: 'search.placeholder', default: 'Search...')}"
             class="search-form__input"
-            additionalAttributes="{autocomplete: 'off'}"
+            additionalAttributes="{autocomplete: 'off', 'data-testid': 'search-input'}"
         />
         <f:form.submit
             value="{f:translate(key: 'search.submit', default: 'Search')}"
             class="search-form__submit"
+            additionalAttributes="{'data-testid': 'search-submit'}"
         />
     </div>
 </f:form>
