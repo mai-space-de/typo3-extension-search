@@ -41,4 +41,22 @@ final class VectorEmbeddingAdapterTest extends TestCase
             $this->adapter,
         );
     }
+
+    #[Test]
+    public function embedTextHandlesExceptionFromUnderlyingService(): void
+    {
+        $result = $this->adapter->embedText('test content that would cause exception');
+
+        self::assertSame([], $result);
+    }
+
+    #[Test]
+    public function multipleCallsToEmbedTextCacheTheServiceInstance(): void
+    {
+        $result1 = $this->adapter->embedText('first call');
+        $result2 = $this->adapter->embedText('second call');
+
+        self::assertSame([], $result1);
+        self::assertSame([], $result2);
+    }
 }

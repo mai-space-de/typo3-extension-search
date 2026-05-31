@@ -207,6 +207,59 @@ final class IndexManagementServiceTest extends TestCase
     }
 
     #[Test]
+    public function addDocumentTruncatesContentAtExactTokenBoundary(): void
+    {
+        $maxTokens = 100;
+        $tokensPerChar = 0.25;
+        $maxChars = (int) floor($maxTokens / $tokensPerChar);
+
+        $embedding = $this->createMock(VectorEmbeddingInterface::class);
+        $embedding
+            ->method('getMaxInputTokens')
+            ->willReturn($maxTokens);
+        $embedding
+            ->expects(self::once())
+            ->method('embedText')
+            ->with(self::callback(static function (string $text) use ($maxTokens, $tokensPerChar): bool {
+                $estimatedTokens = (int) ceil(mb_strlen($text) * $tokensPerChar);
+                return $estimatedTokens <= $maxTokens;
+            }))
+            ->willReturn(array_fill(0, 10, 0.1));
+        $service = $this->createServiceWithEmbedding($embedding);
+
+        $exactBoundaryContent = str_repeat('x', $maxChars);
+        $document = $this->createDocumentWithContent($exactBoundaryContent);
+
+        $service->addDocument($document);
+
+        $fields = $document->getFields();
+        self::assertArrayHasKey(SchemaManager::VECTOR_FIELD_NAME, $fields);
+    }
+
+    #[Test]
+    public function addDocumentHandlesVeryLongContentGracefully(): void
+    {
+        $embedding = $this->createMock(VectorEmbeddingInterface::class);
+        $embedding
+            ->method('getMaxInputTokens')
+            ->willReturn(8191);
+        $embedding
+            ->expects(self::once())
+            ->method('embedText')
+            ->willReturn(array_fill(0, 1536, 0.001));
+        $service = $this->createServiceWithEmbedding($embedding);
+
+        $veryLongContent = str_repeat('This is a very long content string. ', 1000);
+        $document = $this->createDocumentWithContent($veryLongContent);
+
+        $service->addDocument($document);
+
+        $fields = $document->getFields();
+        self::assertArrayHasKey(SchemaManager::VECTOR_FIELD_NAME, $fields);
+        self::assertCount(1536, $fields[SchemaManager::VECTOR_FIELD_NAME]);
+    }
+
+    #[Test]
     public function addDocumentHandlesEmbeddingApiErrorGracefully(): void
     {
         $embedding = $this->createMock(VectorEmbeddingInterface::class);
@@ -271,6 +324,67 @@ final class IndexManagementServiceTest extends TestCase
         $fields = $document->getFields();
         self::assertArrayHasKey(SchemaManager::VECTOR_FIELD_NAME, $fields);
         self::assertSame([0.5, 0.6, 0.7], $fields[SchemaManager::VECTOR_FIELD_NAME]);
+    }
+
+    #[Test]
+    public function addDocumentForLanguageCodeRoutesEmbeddingsToCorrectCore(): void
+    {
+        $embedding = $this->createMock(VectorEmbeddingInterface::class);
+        $embedding
+            ->method('getMaxInputTokens')
+            ->willReturn(8191);
+        $embedding
+            ->method('embedText')
+            ->willReturn([0.1, 0.2, 0.3]);
+
+        $writeServiceEn = $this->createMock(SolrWriteService::class);
+        $writeServiceDe = $this->createMock(SolrWriteService::class);
+        $writeServiceUk = $this->createMock(SolrWriteService::class);
+        $writeServiceAr = $this->createMock(SolrWriteService::class);
+
+        $connectionEn = $this->createMock(SolrConnection::class);
+        $connectionEn->method('getWriteService')->willReturn($writeServiceEn);
+
+        $connectionDe = $this->createMock(SolrConnection::class);
+        $connectionDe->method('getWriteService')->willReturn($writeServiceDe);
+
+        $connectionUk = $this->createMock(SolrConnection::class);
+        $connectionUk->method('getWriteService')->willReturn($writeServiceUk);
+
+        $connectionAr = $this->createMock(SolrConnection::class);
+        $connectionAr->method('getWriteService')->willReturn($writeServiceAr);
+
+        $connectionFactory = $this->createMock(ConnectionFactory::class);
+        $connectionFactory
+            ->method('getConnectionForLanguageCode')
+            ->willReturnMap([
+                ['en', $connectionEn],
+                ['de', $connectionDe],
+                ['uk', $connectionUk],
+                ['ar', $connectionAr],
+            ]);
+
+        $service = new IndexManagementService($connectionFactory, $embedding);
+
+        $documentEn = $this->createDocumentWithContent('English content');
+        $documentDe = $this->createDocumentWithContent('German content');
+        $documentUk = $this->createDocumentWithContent('Ukrainian content');
+        $documentAr = $this->createDocumentWithContent('Arabic content');
+
+        $writeServiceEn->expects(self::once())->method('addDocuments')->with([$documentEn]);
+        $writeServiceDe->expects(self::once())->method('addDocuments')->with([$documentDe]);
+        $writeServiceUk->expects(self::once())->method('addDocuments')->with([$documentUk]);
+        $writeServiceAr->expects(self::once())->method('addDocuments')->with([$documentAr]);
+
+        $service->addDocumentForLanguageCode($documentEn, 'en');
+        $service->addDocumentForLanguageCode($documentDe, 'de');
+        $service->addDocumentForLanguageCode($documentUk, 'uk');
+        $service->addDocumentForLanguageCode($documentAr, 'ar');
+
+        self::assertArrayHasKey(SchemaManager::VECTOR_FIELD_NAME, $documentEn->getFields());
+        self::assertArrayHasKey(SchemaManager::VECTOR_FIELD_NAME, $documentDe->getFields());
+        self::assertArrayHasKey(SchemaManager::VECTOR_FIELD_NAME, $documentUk->getFields());
+        self::assertArrayHasKey(SchemaManager::VECTOR_FIELD_NAME, $documentAr->getFields());
     }
 
     // ── delete / clear operations ────────────────────────────────────────────
