@@ -181,4 +181,59 @@ final class ConnectionFactoryTest extends TestCase
         $endpoint = $connection->getReadService()->getPrimaryEndpoint();
         self::assertSame('core_en', $endpoint->getCore());
     }
+
+    #[Test]
+    public function buildConnectionUsesTypo3SolrHostEnvironmentVariable(): void
+    {
+        putenv('TYPO3_SOLR_HOST=solr');
+
+        try {
+            $factory = $this->createEndpointSettingsFactory(['host' => 'localhost', 'path' => '/']);
+            $settings = $this->invokeBuildEndpointSettings($factory, 'core_de', ['host' => 'localhost', 'path' => '/']);
+
+            self::assertSame('solr', $settings['host']);
+            self::assertSame('core_de', $settings['core']);
+        } finally {
+            putenv('TYPO3_SOLR_HOST');
+        }
+    }
+
+    #[Test]
+    public function buildConnectionNormalizesLegacySolrPathPrefix(): void
+    {
+        $factory = $this->createEndpointSettingsFactory(['host' => 'localhost', 'path' => '/solr/']);
+        $settings = $this->invokeBuildEndpointSettings($factory, 'core_de', ['host' => 'localhost', 'path' => '/solr/']);
+
+        self::assertSame('/', $settings['path']);
+
+        $endpoint = new \Solarium\Core\Client\Endpoint($settings);
+        self::assertSame('http://localhost:8983/solr/core_de/', $endpoint->getCoreBaseUri());
+    }
+
+    /**
+     * @param array<string, mixed> $solrSettings
+     *
+     * @return array{host: string, port: int, path: string, core: string, scheme: string}
+     */
+    private function invokeBuildEndpointSettings(ConnectionFactory $factory, string $core, array $solrSettings): array
+    {
+        $method = new \ReflectionMethod(ConnectionFactory::class, 'buildEndpointSettings');
+        /** @var array{host: string, port: int, path: string, core: string, scheme: string} $settings */
+        $settings = $method->invoke($factory, $core, $solrSettings);
+
+        return $settings;
+    }
+
+    private function createEndpointSettingsFactory(array $solrSettings = []): ConnectionFactory
+    {
+        $settings = ['solr' => $solrSettings];
+
+        $configurationManager = $this->createMock(ConfigurationManagerInterface::class);
+        $configurationManager
+            ->method('getConfiguration')
+            ->with(ConfigurationManagerInterface::CONFIGURATION_TYPE_SETTINGS, 'maisearch')
+            ->willReturn($settings);
+
+        return new ConnectionFactory($configurationManager);
+    }
 }

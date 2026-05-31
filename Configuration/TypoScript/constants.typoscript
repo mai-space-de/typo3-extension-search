@@ -7,9 +7,11 @@ plugin.tx_maisearch {
 
     settings {
         solr {
+            # Host overridden by TYPO3_SOLR_HOST in DDEV (solr) and production env.
             host = localhost
             port = 8983
-            path = /solr/
+            # Must not contain "/solr/" — Solarium adds its own context segment.
+            path = /
             scheme = http
 
             core = core_en

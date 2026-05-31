@@ -6,27 +6,47 @@ namespace Maispace\MaiSearch\Domain\Solr;
 
 use ApacheSolrForTypo3\Solr\System\Solr\SolrConnection;
 use Solarium\Core\Client\Endpoint;
+use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
-use TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 class ConnectionFactory implements SingletonInterface
 {
-    private const DEFAULT_HOST = 'localhost';
+    private const DEFAULT_HOST = 'solr';
     private const DEFAULT_PORT = 8983;
-    private const DEFAULT_PATH = '/';
+    private const DEFAULT_PATH = '';
     private const DEFAULT_CORE = 'core_en';
     private const DEFAULT_SCHEME = 'http';
 
     private array $settings;
 
     public function __construct(
-        private readonly ConfigurationManagerInterface $configurationManager,
+        ?ExtensionConfiguration $extensionConfiguration = null,
     ) {
-        $this->settings = $this->configurationManager->getConfiguration(
-            ConfigurationManagerInterface::CONFIGURATION_TYPE_SETTINGS,
-            'maisearch',
-        );
+        $extensionConfiguration = $extensionConfiguration ?? GeneralUtility::makeInstance(ExtensionConfiguration::class);
+        
+        try {
+            $typoScriptSettings = $extensionConfiguration->get('mai_search');
+        } catch (\Exception) {
+            $typoScriptSettings = [];
+        }
+
+        $this->settings = [
+            'solr' => [
+                'host' => $this->resolveEnvString('TYPO3_SOLR_HOST') ?? ($typoScriptSettings['host'] ?? self::DEFAULT_HOST),
+                'port' => (int) ($this->resolveEnvString('TYPO3_SOLR_PORT') ?? (string) ($typoScriptSettings['port'] ?? self::DEFAULT_PORT)),
+                'path' => $typoScriptSettings['path'] ?? self::DEFAULT_PATH,
+                'core' => $typoScriptSettings['core'] ?? self::DEFAULT_CORE,
+                'coreMapping' => $typoScriptSettings['coreMapping'] ?? [
+                    'de' => 'core_de',
+                    'en' => 'core_en',
+                    'uk' => 'core_uk',
+                    'ar' => 'core_ar',
+                ],
+                'scheme' => $typoScriptSettings['scheme'] ?? self::DEFAULT_SCHEME,
+            ],
+        ];
     }
 
     public function getConnection(?SiteLanguage $language = null): SolrConnection
@@ -70,27 +90,63 @@ class ConnectionFactory implements SingletonInterface
      */
     protected function buildConnection(string $core, array $solrSettings): SolrConnection
     {
-        $host = $solrSettings['host'] ?? self::DEFAULT_HOST;
-        $port = (int) ($solrSettings['port'] ?? self::DEFAULT_PORT);
-        $path = $solrSettings['path'] ?? self::DEFAULT_PATH;
-        $scheme = $solrSettings['scheme'] ?? self::DEFAULT_SCHEME;
+        $endpointSettings = $this->buildEndpointSettings($core, $solrSettings);
 
-        $readEndpoint = new Endpoint([
-            'host' => $host,
-            'port' => $port,
-            'path' => $path,
-            'core' => $core,
-            'scheme' => $scheme,
-        ]);
-
-        $writeEndpoint = new Endpoint([
-            'host' => $host,
-            'port' => $port,
-            'path' => $path,
-            'core' => $core,
-            'scheme' => $scheme,
-        ]);
+        $readEndpoint = new Endpoint($endpointSettings);
+        $writeEndpoint = new Endpoint($endpointSettings);
 
         return new SolrConnection($readEndpoint, $writeEndpoint);
+    }
+
+    /**
+     * @param array<string, mixed> $solrSettings
+     *
+     * @return array{host: string, port: int, path: string, core: string, scheme: string}
+     */
+    protected function buildEndpointSettings(string $core, array $solrSettings): array
+    {
+        return [
+            'host' => $this->resolveEnvString('TYPO3_SOLR_HOST')
+                ?? ($solrSettings['host'] ?? self::DEFAULT_HOST),
+            'port' => (int) ($this->resolveEnvString('TYPO3_SOLR_PORT')
+                ?? (string) ($solrSettings['port'] ?? self::DEFAULT_PORT)),
+            'path' => $this->resolvePath($solrSettings),
+            'core' => $core,
+            'scheme' => $solrSettings['scheme'] ?? self::DEFAULT_SCHEME,
+        ];
+    }
+
+    /**
+     * Solarium adds its own "solr" context segment to the request URI.
+     * The endpoint path must therefore not contain "/solr/" (see EXT:solr site config docs).
+     *
+     * @param array<string, mixed> $solrSettings
+     */
+    private function resolvePath(array $solrSettings): string
+    {
+        $envPath = $this->resolveEnvString('TYPO3_SOLR_PATH');
+        if ($envPath !== null) {
+            return $envPath;
+        }
+
+        $path = (string) ($solrSettings['path'] ?? self::DEFAULT_PATH);
+        $normalized = rtrim($path, '/');
+
+        if ($normalized === '' || $normalized === '/solr') {
+            return self::DEFAULT_PATH;
+        }
+
+        return $path;
+    }
+
+    private function resolveEnvString(string $environmentVariable): ?string
+    {
+        $value = getenv($environmentVariable);
+
+        if ($value === false || $value === '') {
+            return null;
+        }
+
+        return $value;
     }
 }
