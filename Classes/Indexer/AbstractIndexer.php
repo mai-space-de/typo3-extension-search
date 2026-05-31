@@ -37,7 +37,7 @@ abstract class AbstractIndexer implements SearchIndexerInterface
         string $title,
         string $content,
         string $url,
-        \DateTime $crdate,
+        \DateTimeInterface $crdate,
         float $boost,
         array $rootline = [],
     ): Document {
@@ -45,6 +45,7 @@ abstract class AbstractIndexer implements SearchIndexerInterface
         $document->setField('id', $type . '-' . $uid);
         $document->setField('type_s', $type);
         $document->setField('title_s', $title);
+        $document->setField('title_t', $title);
         $document->setField('content_t', $content);
         $document->setField('url_s', $url);
         $document->setField('uid_i', $uid);

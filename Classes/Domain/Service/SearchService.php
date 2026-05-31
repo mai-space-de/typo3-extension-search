@@ -56,7 +56,7 @@ class SearchService implements SingletonInterface
 
         $connection = $this->connectionFactory->getConnection($language);
         $solrQuery = new Query();
-        $solrQuery->setQuery($query);
+        $solrQuery->setQuery($this->buildSolrQuery($query));
         $solrQuery->setRows($limit);
         $solrQuery->setStart($offset);
 
@@ -65,6 +65,20 @@ class SearchService implements SingletonInterface
         $response = $connection->getReadService()->search($solrQuery);
 
         return $this->buildResults($response);
+    }
+
+    /**
+     * Bare DDEV Solr cores have no copyField into `_text_`; search title and body fields explicitly.
+     */
+    private function buildSolrQuery(string $query): string
+    {
+        $escaped = preg_replace(
+            '/([+\-&|!(){}[\]^"~*?:\\\\\\/])/',
+            '\\\\$1',
+            trim($query),
+        );
+
+        return sprintf('(title_t:(%s) OR content_t:(%s))', $escaped, $escaped);
     }
 
     private function applyHybridKnnReRank(

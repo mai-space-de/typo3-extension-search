@@ -174,6 +174,46 @@ final class SchemaManagerTest extends TestCase
     }
 
     #[Test]
+    public function ensureVectorFieldExistsSilentlyIgnoresAlreadyExistsErrorFromResponseBody(): void
+    {
+        $endpoint = new \Solarium\Core\Client\Endpoint([
+            'scheme' => 'http',
+            'host' => 'localhost',
+            'port' => 8983,
+            'core' => 'core_en',
+        ]);
+
+        $readService = $this->createConfiguredMock(
+            \ApacheSolrForTypo3\Solr\System\Solr\Service\SolrReadService::class,
+            ['getPrimaryEndpoint' => $endpoint],
+        );
+
+        $connection = $this->createMock(\ApacheSolrForTypo3\Solr\System\Solr\SolrConnection::class);
+        $connection->method('getReadService')->willReturn($readService);
+
+        $factory = $this->createMock(ConnectionFactory::class);
+        $factory->method('getConnectionForLanguageCode')->willReturn($connection);
+
+        $alreadyExistsException = new RequestException(
+            'Client error: `POST http://solr:8983/solr/core_en/schema` resulted in a `400 Bad Request` response',
+            new Request('POST', 'http://solr:8983/solr/core_en/schema'),
+            new Response(
+                400,
+                [],
+                '{"error":{"details":[{"errorMessages":["Field type \'knn_vector_1536\' already exists.\\n"]}]}}',
+            ),
+        );
+
+        $httpClient = $this->createMock(ClientInterface::class);
+        $httpClient->method('request')->willThrowException($alreadyExistsException);
+
+        $manager = new SchemaManager($factory, $httpClient);
+        $manager->ensureVectorFieldExists('core_en');
+
+        $this->expectNotToPerformAssertions();
+    }
+
+    #[Test]
     public function ensureVectorFieldExistsThrowsRuntimeExceptionForUnexpectedError(): void
     {
         $endpoint = new \Solarium\Core\Client\Endpoint([

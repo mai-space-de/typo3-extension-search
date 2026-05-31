@@ -27,4 +27,5 @@ plugin.tx_maisearch {
         partialRootPaths.0 = {$plugin.tx_maisearch.view.partialRootPath}
         layoutRootPaths.0 = {$plugin.tx_maisearch.view.layoutRootPath}
     }
+}
 

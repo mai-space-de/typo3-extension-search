@@ -114,7 +114,7 @@ class SearchServiceTest extends TestCase
             ->expects(self::once())
             ->method('search')
             ->with(self::callback(function (Query $query): bool {
-                return $query->getQuery() === 'test'
+                return $query->getQuery() === '(title_t:(test) OR content_t:(test))'
                     && $query->getRows() === 10
                     && $query->getStart() === 5;
             }))

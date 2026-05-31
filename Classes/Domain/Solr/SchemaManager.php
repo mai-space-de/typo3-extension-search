@@ -7,6 +7,7 @@ namespace Maispace\MaiSearch\Domain\Solr;
 use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\GuzzleException;
+use GuzzleHttp\Exception\RequestException;
 use TYPO3\CMS\Core\SingletonInterface;
 
 /**
@@ -147,6 +148,10 @@ final class SchemaManager implements SingletonInterface
     private function isAlreadyExistsError(\Throwable $e): bool
     {
         $message = $e->getMessage();
+
+        if ($e instanceof RequestException && $e->hasResponse()) {
+            $message .= (string) $e->getResponse()->getBody();
+        }
 
         return str_contains($message, 'already exists')
             || str_contains($message, 'already a field')

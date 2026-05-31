@@ -8,23 +8,21 @@ use ApacheSolrForTypo3\Solr\System\Solr\SolrConnection;
 use Maispace\MaiSearch\Domain\Solr\ConnectionFactory;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
-use TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface;
 
 final class ConnectionFactoryTest extends TestCase
 {
     private function createFactory(array $solrSettings = []): ConnectionFactory
     {
-        $settings = ['solr' => $solrSettings];
-
-        $configurationManager = $this->createMock(ConfigurationManagerInterface::class);
-        $configurationManager
-            ->method('getConfiguration')
-            ->with(ConfigurationManagerInterface::CONFIGURATION_TYPE_SETTINGS, 'maisearch')
-            ->willReturn($settings);
+        $extensionConfiguration = $this->createMock(ExtensionConfiguration::class);
+        $extensionConfiguration
+            ->method('get')
+            ->with('mai_search')
+            ->willReturn($solrSettings);
 
         $factory = $this->getMockBuilder(ConnectionFactory::class)
-            ->setConstructorArgs([$configurationManager])
+            ->setConstructorArgs([$extensionConfiguration])
             ->onlyMethods(['buildConnection'])
             ->getMock();
 
@@ -84,13 +82,18 @@ final class ConnectionFactoryTest extends TestCase
     }
 
     #[Test]
-    public function getCoreMappingReturnsEmptyArrayWhenNotConfigured(): void
+    public function getCoreMappingReturnsDefaultMappingWhenNotConfigured(): void
     {
         $factory = $this->createFactory([]);
 
         $mapping = $factory->getCoreMapping();
 
-        self::assertSame([], $mapping);
+        self::assertSame([
+            'de' => 'core_de',
+            'en' => 'core_en',
+            'uk' => 'core_uk',
+            'ar' => 'core_ar',
+        ], $mapping);
     }
 
     #[Test]
@@ -204,7 +207,7 @@ final class ConnectionFactoryTest extends TestCase
         $factory = $this->createEndpointSettingsFactory(['host' => 'localhost', 'path' => '/solr/']);
         $settings = $this->invokeBuildEndpointSettings($factory, 'core_de', ['host' => 'localhost', 'path' => '/solr/']);
 
-        self::assertSame('/', $settings['path']);
+        self::assertSame('', $settings['path']);
 
         $endpoint = new \Solarium\Core\Client\Endpoint($settings);
         self::assertSame('http://localhost:8983/solr/core_de/', $endpoint->getCoreBaseUri());
@@ -226,14 +229,12 @@ final class ConnectionFactoryTest extends TestCase
 
     private function createEndpointSettingsFactory(array $solrSettings = []): ConnectionFactory
     {
-        $settings = ['solr' => $solrSettings];
+        $extensionConfiguration = $this->createMock(ExtensionConfiguration::class);
+        $extensionConfiguration
+            ->method('get')
+            ->with('mai_search')
+            ->willReturn($solrSettings);
 
-        $configurationManager = $this->createMock(ConfigurationManagerInterface::class);
-        $configurationManager
-            ->method('getConfiguration')
-            ->with(ConfigurationManagerInterface::CONFIGURATION_TYPE_SETTINGS, 'maisearch')
-            ->willReturn($settings);
-
-        return new ConnectionFactory($configurationManager);
+        return new ConnectionFactory($extensionConfiguration);
     }
 }
