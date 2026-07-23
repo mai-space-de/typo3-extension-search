@@ -7,7 +7,8 @@
 ## Search Results
 
 * Results page — paginated search results with relevance ranking
-* Type filtering — filter results by content type (news, events, FAQ, etc.)
+* Type filtering — filter results by content type (`type_s`: news, page, events, …) including facet counts that stay visible while a type filter is active
+* Own Solr client — Solarium-backed `SolrClient` in `mai_search` (no `ext-solr` dependency)
 * Live search suggestions — optional AJAX-based autocomplete for the search field
 
 ## RAG (Retrieval-Augmented Generation)

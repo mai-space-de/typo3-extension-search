@@ -85,7 +85,8 @@ readonly class SearchResult {
 - `typo3/cms-extbase` ^14.1
 - `typo3/cms-fluid` ^14.1
 - `typo3/cms-scheduler` ^14.1
-- `apache-solr-for-typo3/solr` ^14.0 (ext-solr)
+- `solarium/solarium` ^7.0 (direct Solr client; replaces ext-solr)
+- `guzzlehttp/guzzle` ^7.0 (Schema REST API)
 
 → Add to `composer.json` requires section.
 

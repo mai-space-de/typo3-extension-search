@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace Maispace\MaiSearch\Domain\Service;
 
-use ApacheSolrForTypo3\Solr\Domain\Search\Query\Query;
-use ApacheSolrForTypo3\Solr\System\Solr\ResponseAdapter;
 use Maispace\MaiSearch\Domain\Dto\SearchResult;
+use Maispace\MaiSearch\Domain\Dto\SearchResultPage;
 use Maispace\MaiSearch\Domain\Solr\ConnectionFactory;
 use Maispace\MaiSearch\Domain\Solr\SchemaManager;
+use Maispace\MaiSearch\Domain\Solr\SearchQuery;
+use Maispace\MaiSearch\Domain\Solr\SearchResponse;
 use Maispace\MaiSearch\Service\ResultFormatterRegistry;
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
@@ -17,6 +18,7 @@ class SearchService implements SingletonInterface
 {
     private const int DEFAULT_KNN_TOP_K = 100;
     private const float DEFAULT_KNN_WEIGHT = 1.0;
+    private const string TYPE_FACET_KEY = 'type';
 
     public function __construct(
         private readonly ConnectionFactory $connectionFactory,
@@ -38,8 +40,7 @@ class SearchService implements SingletonInterface
      * @param bool $ragEnabled Whether to enable hybrid vector+text search
      * @param int $knnTopK Number of nearest neighbours to consider for KNN re-ranking
      * @param float $knnWeight Weight multiplier applied to the KNN re-rank score
-     *
-     * @return SearchResult[]
+     * @param string|null $type Optional type_s filter (news, page, events, …)
      */
     public function search(
         string $query,
@@ -49,22 +50,37 @@ class SearchService implements SingletonInterface
         bool $ragEnabled = false,
         int $knnTopK = self::DEFAULT_KNN_TOP_K,
         float $knnWeight = self::DEFAULT_KNN_WEIGHT,
-    ): array {
+        ?string $type = null,
+    ): SearchResultPage {
+        $page = $limit > 0 ? (int) floor($offset / $limit) + 1 : 1;
+
         if (trim($query) === '') {
-            return [];
+            return new SearchResultPage([], 0, [], $page, $limit);
         }
 
         $connection = $this->connectionFactory->getConnection($language);
-        $solrQuery = new Query();
+        $solrQuery = new SearchQuery();
         $solrQuery->setQuery($this->buildSolrQuery($query));
         $solrQuery->setRows($limit);
         $solrQuery->setStart($offset);
+        $solrQuery->addFacetField(self::TYPE_FACET_KEY, 'type_s', ['typefilter']);
+
+        $normalizedType = $this->normalizeTypeFilter($type);
+        if ($normalizedType !== null) {
+            $solrQuery->addFilterQuery('type_s:' . $normalizedType, 'typefilter');
+        }
 
         $this->applyHybridKnnReRank($solrQuery, $query, $ragEnabled, $knnTopK, $knnWeight);
 
-        $response = $connection->getReadService()->search($solrQuery);
+        $response = $connection->search($solrQuery);
 
-        return $this->buildResults($response);
+        return new SearchResultPage(
+            $this->buildResults($response),
+            $response->getNumFound(),
+            $response->getFacetCountsFor(self::TYPE_FACET_KEY),
+            $page,
+            $limit,
+        );
     }
 
     /**
@@ -81,8 +97,22 @@ class SearchService implements SingletonInterface
         return sprintf('(title_t:(%s) OR content_t:(%s))', $escaped, $escaped);
     }
 
+    private function normalizeTypeFilter(?string $type): ?string
+    {
+        if ($type === null) {
+            return null;
+        }
+
+        $normalized = trim($type);
+        if ($normalized === '' || !preg_match('/^[a-z0-9_-]+$/i', $normalized)) {
+            return null;
+        }
+
+        return $normalized;
+    }
+
     private function applyHybridKnnReRank(
-        Query $solrQuery,
+        SearchQuery $solrQuery,
         string $query,
         bool $ragEnabled,
         int $knnTopK,
@@ -109,7 +139,7 @@ class SearchService implements SingletonInterface
      * @param list<float> $vector
      */
     private function addKnnReRankParam(
-        Query $solrQuery,
+        SearchQuery $solrQuery,
         array $vector,
         int $knnTopK,
         float $knnWeight,
@@ -130,18 +160,13 @@ class SearchService implements SingletonInterface
     }
 
     /**
-     * @return SearchResult[]
+     * @return list<SearchResult>
      */
-    private function buildResults(ResponseAdapter $response): array
+    private function buildResults(SearchResponse $response): array
     {
         $results = [];
 
-        if (!isset($response->response->docs) || !is_array($response->response->docs)) {
-            return $results;
-        }
-
-        foreach ($response->response->docs as $doc) {
-            $docArray = json_decode(json_encode($doc), true) ?? [];
+        foreach ($response->getDocuments() as $docArray) {
             $type = $docArray['type_s'] ?? '';
             if ($type === '') {
                 continue;

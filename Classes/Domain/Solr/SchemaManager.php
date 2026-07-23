@@ -164,7 +164,7 @@ final class SchemaManager implements SingletonInterface
             $this->resolveLanguageCodeFromCore($core),
         );
 
-        $endpoint = $connection->getReadService()->getPrimaryEndpoint();
+        $endpoint = $connection->getEndpoint();
 
         return sprintf(
             '%s://%s:%d%s',

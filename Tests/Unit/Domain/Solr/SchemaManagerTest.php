@@ -10,6 +10,7 @@ use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use Maispace\MaiSearch\Domain\Solr\ConnectionFactory;
 use Maispace\MaiSearch\Domain\Solr\SchemaManager;
+use Maispace\MaiSearch\Domain\Solr\SolrClientInterface;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -78,13 +79,8 @@ final class SchemaManagerTest extends TestCase
             'core' => 'core_en',
         ]);
 
-        $readService = $this->createConfiguredMock(
-            \ApacheSolrForTypo3\Solr\System\Solr\Service\SolrReadService::class,
-            ['getPrimaryEndpoint' => $endpoint],
-        );
-
-        $connection = $this->createMock(\ApacheSolrForTypo3\Solr\System\Solr\SolrConnection::class);
-        $connection->method('getReadService')->willReturn($readService);
+        $connection = $this->createMock(SolrClientInterface::class);
+        $connection->method('getEndpoint')->willReturn($endpoint);
 
         $factory = $this->createMock(ConnectionFactory::class);
         $factory->method('getCoreMapping')->willReturn(['en' => 'core_en', 'de' => 'core_de']);
@@ -110,13 +106,8 @@ final class SchemaManagerTest extends TestCase
             'core' => 'core_en',
         ]);
 
-        $readService = $this->createConfiguredMock(
-            \ApacheSolrForTypo3\Solr\System\Solr\Service\SolrReadService::class,
-            ['getPrimaryEndpoint' => $endpoint],
-        );
-
-        $connection = $this->createMock(\ApacheSolrForTypo3\Solr\System\Solr\SolrConnection::class);
-        $connection->method('getReadService')->willReturn($readService);
+        $connection = $this->createMock(SolrClientInterface::class);
+        $connection->method('getEndpoint')->willReturn($endpoint);
 
         $factory = $this->createMock(ConnectionFactory::class);
         $factory->method('getConnectionForLanguageCode')->willReturn($connection);
@@ -148,13 +139,8 @@ final class SchemaManagerTest extends TestCase
             'core' => 'core_en',
         ]);
 
-        $readService = $this->createConfiguredMock(
-            \ApacheSolrForTypo3\Solr\System\Solr\Service\SolrReadService::class,
-            ['getPrimaryEndpoint' => $endpoint],
-        );
-
-        $connection = $this->createMock(\ApacheSolrForTypo3\Solr\System\Solr\SolrConnection::class);
-        $connection->method('getReadService')->willReturn($readService);
+        $connection = $this->createMock(SolrClientInterface::class);
+        $connection->method('getEndpoint')->willReturn($endpoint);
 
         $factory = $this->createMock(ConnectionFactory::class);
         $factory->method('getConnectionForLanguageCode')->willReturn($connection);
@@ -183,13 +169,8 @@ final class SchemaManagerTest extends TestCase
             'core' => 'core_en',
         ]);
 
-        $readService = $this->createConfiguredMock(
-            \ApacheSolrForTypo3\Solr\System\Solr\Service\SolrReadService::class,
-            ['getPrimaryEndpoint' => $endpoint],
-        );
-
-        $connection = $this->createMock(\ApacheSolrForTypo3\Solr\System\Solr\SolrConnection::class);
-        $connection->method('getReadService')->willReturn($readService);
+        $connection = $this->createMock(SolrClientInterface::class);
+        $connection->method('getEndpoint')->willReturn($endpoint);
 
         $factory = $this->createMock(ConnectionFactory::class);
         $factory->method('getConnectionForLanguageCode')->willReturn($connection);
@@ -223,13 +204,8 @@ final class SchemaManagerTest extends TestCase
             'core' => 'core_en',
         ]);
 
-        $readService = $this->createConfiguredMock(
-            \ApacheSolrForTypo3\Solr\System\Solr\Service\SolrReadService::class,
-            ['getPrimaryEndpoint' => $endpoint],
-        );
-
-        $connection = $this->createMock(\ApacheSolrForTypo3\Solr\System\Solr\SolrConnection::class);
-        $connection->method('getReadService')->willReturn($readService);
+        $connection = $this->createMock(SolrClientInterface::class);
+        $connection->method('getEndpoint')->willReturn($endpoint);
 
         $factory = $this->createMock(ConnectionFactory::class);
         $factory->method('getConnectionForLanguageCode')->willReturn($connection);

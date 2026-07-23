@@ -95,6 +95,17 @@ final class SearchControllerTest extends TestCase
     }
 
     #[Test]
+    public function resultsActionAcceptsTypeAndPageParameters(): void
+    {
+        $params = (new \ReflectionMethod(SearchController::class, 'resultsAction'))
+            ->getParameters();
+
+        $names = array_map(static fn(\ReflectionParameter $p) => $p->getName(), $params);
+        self::assertContains('type', $names);
+        self::assertContains('page', $names);
+    }
+
+    #[Test]
     public function resultsActionAcceptsQueryParameter(): void
     {
         $params = (new \ReflectionMethod(SearchController::class, 'resultsAction'))

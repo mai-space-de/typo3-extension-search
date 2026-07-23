@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Maispace\MaiSearch\Domain\Service;
 
-use ApacheSolrForTypo3\Solr\Domain\Search\Query\Query;
-use ApacheSolrForTypo3\Solr\System\Solr\Document\Document;
 use Maispace\MaiSearch\Domain\Model\IndexingContext;
 use Maispace\MaiSearch\Domain\Solr\ConnectionFactory;
+use Maispace\MaiSearch\Domain\Solr\Document;
 use Maispace\MaiSearch\Domain\Solr\SchemaManager;
+use Maispace\MaiSearch\Domain\Solr\SearchQuery;
 use Maispace\MaiSearch\Service\IndexerRegistry;
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
@@ -29,8 +29,8 @@ class IndexManagementService implements SingletonInterface
         $this->addEmbeddingToDocument($document);
 
         $connection = $this->connectionFactory->getConnection($language);
-        $connection->getWriteService()->addDocuments([$document]);
-        $connection->getWriteService()->commit(false, false);
+        $connection->addDocuments([$document]);
+        $connection->commit(false, false);
     }
 
     /**
@@ -47,30 +47,50 @@ class IndexManagementService implements SingletonInterface
             $connection = $this->connectionFactory->getConnection();
         }
 
-        $connection->getWriteService()->addDocuments([$document]);
-        $connection->getWriteService()->commit(false, false);
+        $connection->addDocuments([$document]);
+        $connection->commit(false, false);
     }
 
     public function deleteRecord(string $type, int $uid, ?SiteLanguage $language = null): void
     {
         $id = $type . '-' . $uid;
         $connection = $this->connectionFactory->getConnection($language);
-        $connection->getWriteService()->deleteByQuery('id:' . $id);
-        $connection->getWriteService()->commit(false, false);
+        $connection->deleteByQuery('id:' . $id);
+        $connection->commit(false, false);
     }
 
     public function deleteByType(string $type, ?SiteLanguage $language = null): void
     {
         $connection = $this->connectionFactory->getConnection($language);
-        $connection->getWriteService()->deleteByType($type, false);
-        $connection->getWriteService()->commit(false, false);
+        $connection->deleteByType($type);
+        $connection->commit(false, false);
     }
 
     public function clearIndex(?SiteLanguage $language = null): void
     {
         $connection = $this->connectionFactory->getConnection($language);
-        $connection->getWriteService()->deleteByQuery('*:*');
-        $connection->getWriteService()->commit(false, false);
+        $connection->deleteByQuery('*:*');
+        $connection->commit(false, false);
+    }
+
+    /**
+     * Clear every configured language core.
+     */
+    public function clearAllCores(): void
+    {
+        $coreMapping = $this->connectionFactory->getCoreMapping();
+
+        if ($coreMapping === []) {
+            $this->clearIndex();
+
+            return;
+        }
+
+        foreach (array_keys($coreMapping) as $languageCode) {
+            $connection = $this->connectionFactory->getConnectionForLanguageCode((string) $languageCode);
+            $connection->deleteByQuery('*:*');
+            $connection->commit(false, false);
+        }
     }
 
     /**
@@ -171,37 +191,18 @@ class IndexManagementService implements SingletonInterface
             $languageCode = $this->resolveLanguageCodeFromCore($core);
             $connection = $this->connectionFactory->getConnectionForLanguageCode($languageCode);
 
-            $query = new Query();
-            $query->setQuery('*:*');
-            $query->setRows(0);
+            $query = (new SearchQuery())
+                ->setQuery('*:*')
+                ->setRows(0)
+                ->addFacetField('type', 'type_s');
 
-            // Facet on type_s to get per-type document counts
-            $query->getFacetSet()
-                ->createFacetField(['key' => 'type', 'field' => 'type_s']);
-
-            $response = $connection->getReadService()->search($query);
-
-            $totalDocuments = (int) ($response->response->numFound ?? 0);
-            $types = [];
-
-            $facetFields = $response->facet_counts->facet_fields->type_s ?? null;
-            if (is_array($facetFields)) {
-                $key = null;
-                foreach ($facetFields as $item) {
-                    if ($key === null) {
-                        $key = (string) $item;
-                    } else {
-                        $types[$key] = (int) $item;
-                        $key = null;
-                    }
-                }
-            }
+            $response = $connection->search($query);
 
             return [
-                'totalDocuments' => $totalDocuments,
-                'types' => $types,
+                'totalDocuments' => $response->getNumFound(),
+                'types' => $response->getFacetCountsFor('type'),
             ];
-        } catch (\Throwable $e) {
+        } catch (\Throwable) {
             // Solr is unreachable — return empty stats rather than breaking the backend module.
             return [
                 'totalDocuments' => 0,

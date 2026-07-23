@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Maispace\MaiSearch\Tests\Unit\Domain\Solr;
 
-use ApacheSolrForTypo3\Solr\System\Solr\SolrConnection;
 use Maispace\MaiSearch\Domain\Solr\ConnectionFactory;
+use Maispace\MaiSearch\Domain\Solr\SolrClientInterface;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
@@ -28,35 +28,17 @@ final class ConnectionFactoryTest extends TestCase
 
         $factory
             ->method('buildConnection')
-            ->willReturnCallback(function (string $core) {
-                return $this->createMockConnectionWithCore($core);
+            ->willReturnCallback(function (string $core): SolrClientInterface {
+                $client = $this->createMock(SolrClientInterface::class);
+                $client->method('getCore')->willReturn($core);
+                $client->method('getEndpoint')->willReturn(
+                    new \Solarium\Core\Client\Endpoint(['key' => 'mai_search', 'core' => $core]),
+                );
+
+                return $client;
             });
 
         return $factory;
-    }
-
-    private function createMockConnectionWithCore(string $core): SolrConnection
-    {
-        $connection = $this->createMock(SolrConnection::class);
-        $connection->method('getReadService')->willReturn(
-            $this->createConfiguredMock(
-                \ApacheSolrForTypo3\Solr\System\Solr\Service\SolrReadService::class,
-                ['getPrimaryEndpoint' => $this->createEndpoint($core)],
-            ),
-        );
-        $connection->method('getWriteService')->willReturn(
-            $this->createConfiguredMock(
-                \ApacheSolrForTypo3\Solr\System\Solr\Service\SolrWriteService::class,
-                ['getPrimaryEndpoint' => $this->createEndpoint($core)],
-            ),
-        );
-
-        return $connection;
-    }
-
-    private function createEndpoint(string $core): \Solarium\Core\Client\Endpoint
-    {
-        return new \Solarium\Core\Client\Endpoint(['core' => $core]);
     }
 
     #[Test]
@@ -71,14 +53,12 @@ final class ConnectionFactoryTest extends TestCase
             ],
         ]);
 
-        $mapping = $factory->getCoreMapping();
-
         self::assertSame([
             'en' => 'core_en',
             'de' => 'core_de',
             'uk' => 'core_uk',
             'ar' => 'core_ar',
-        ], $mapping);
+        ], $factory->getCoreMapping());
     }
 
     #[Test]
@@ -86,14 +66,12 @@ final class ConnectionFactoryTest extends TestCase
     {
         $factory = $this->createFactory([]);
 
-        $mapping = $factory->getCoreMapping();
-
         self::assertSame([
             'de' => 'core_de',
             'en' => 'core_en',
             'uk' => 'core_uk',
             'ar' => 'core_ar',
-        ], $mapping);
+        ], $factory->getCoreMapping());
     }
 
     #[Test]
@@ -108,8 +86,7 @@ final class ConnectionFactoryTest extends TestCase
 
         $connection = $factory->getConnectionForLanguageCode('de');
 
-        $endpoint = $connection->getReadService()->getPrimaryEndpoint();
-        self::assertSame('core_de', $endpoint->getCore());
+        self::assertSame('core_de', $connection->getCore());
     }
 
     #[Test]
@@ -124,8 +101,7 @@ final class ConnectionFactoryTest extends TestCase
 
         $connection = $factory->getConnectionForLanguageCode('fr');
 
-        $endpoint = $connection->getReadService()->getPrimaryEndpoint();
-        self::assertSame('core_default', $endpoint->getCore());
+        self::assertSame('core_default', $connection->getCore());
     }
 
     #[Test]
@@ -145,8 +121,7 @@ final class ConnectionFactoryTest extends TestCase
 
         $connection = $factory->getConnection($language);
 
-        $endpoint = $connection->getReadService()->getPrimaryEndpoint();
-        self::assertSame('core_de', $endpoint->getCore());
+        self::assertSame('core_de', $connection->getCore());
     }
 
     #[Test]
@@ -161,8 +136,7 @@ final class ConnectionFactoryTest extends TestCase
 
         $connection = $factory->getConnection(null);
 
-        $endpoint = $connection->getReadService()->getPrimaryEndpoint();
-        self::assertSame('core_en', $endpoint->getCore());
+        self::assertSame('core_en', $connection->getCore());
     }
 
     #[Test]
@@ -181,8 +155,7 @@ final class ConnectionFactoryTest extends TestCase
 
         $connection = $factory->getConnection($language);
 
-        $endpoint = $connection->getReadService()->getPrimaryEndpoint();
-        self::assertSame('core_en', $endpoint->getCore());
+        self::assertSame('core_en', $connection->getCore());
     }
 
     #[Test]
@@ -196,6 +169,7 @@ final class ConnectionFactoryTest extends TestCase
 
             self::assertSame('solr', $settings['host']);
             self::assertSame('core_de', $settings['core']);
+            self::assertSame('mai_search', $settings['key']);
         } finally {
             putenv('TYPO3_SOLR_HOST');
         }
@@ -216,12 +190,13 @@ final class ConnectionFactoryTest extends TestCase
     /**
      * @param array<string, mixed> $solrSettings
      *
-     * @return array{host: string, port: int, path: string, core: string, scheme: string}
+     * @return array{key: string, host: string, port: int, path: string, core: string, scheme: string}
      */
     private function invokeBuildEndpointSettings(ConnectionFactory $factory, string $core, array $solrSettings): array
     {
         $method = new \ReflectionMethod(ConnectionFactory::class, 'buildEndpointSettings');
-        /** @var array{host: string, port: int, path: string, core: string, scheme: string} $settings */
+
+        /** @var array{key: string, host: string, port: int, path: string, core: string, scheme: string} $settings */
         $settings = $method->invoke($factory, $core, $solrSettings);
 
         return $settings;

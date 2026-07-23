@@ -86,16 +86,7 @@ class SearchBackendController extends AbstractBackendController
     public function clearAction(): ResponseInterface
     {
         try {
-            $coreMapping = $this->connectionFactory->getCoreMapping();
-
-            if ($coreMapping === []) {
-                $this->indexManagementService->clearIndex();
-            } else {
-                $connection = $this->connectionFactory->getConnection();
-                $writeService = $connection->getWriteService();
-                $writeService->deleteByQuery('*:*');
-                $writeService->commit(false, false);
-            }
+            $this->indexManagementService->clearAllCores();
 
             $this->flashSuccess('Search index has been cleared.');
         } catch (\Throwable $e) {

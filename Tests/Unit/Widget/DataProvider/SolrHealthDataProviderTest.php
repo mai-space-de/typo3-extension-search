@@ -4,27 +4,20 @@ declare(strict_types=1);
 
 namespace Maispace\MaiSearch\Tests\Unit\Widget\DataProvider;
 
-use ApacheSolrForTypo3\Solr\System\Solr\ResponseAdapter;
-use ApacheSolrForTypo3\Solr\System\Solr\Service\SolrAdminService;
-use ApacheSolrForTypo3\Solr\System\Solr\SolrConnection;
 use Maispace\MaiSearch\Domain\Solr\ConnectionFactory;
+use Maispace\MaiSearch\Domain\Solr\SolrClientInterface;
 use Maispace\MaiSearch\Widget\DataProvider\SolrHealthDataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Solarium\Core\Client\Endpoint;
 
 class SolrHealthDataProviderTest extends TestCase
 {
     private ConnectionFactory $connectionFactory;
-    private SolrConnection $solrConnection;
-    private SolrAdminService $adminService;
-    private Endpoint $endpoint;
+    private SolrClientInterface $solrClient;
 
     protected function setUp(): void
     {
-        $this->endpoint = $this->createMock(Endpoint::class);
-        $this->adminService = $this->createMock(SolrAdminService::class);
-        $this->solrConnection = $this->createMock(SolrConnection::class);
+        $this->solrClient = $this->createMock(SolrClientInterface::class);
         $this->connectionFactory = $this->createMock(ConnectionFactory::class);
     }
 
@@ -36,34 +29,11 @@ class SolrHealthDataProviderTest extends TestCase
     #[Test]
     public function getHealthDataReturnsConnectedTrueWhenPingSucceeds(): void
     {
-        $this->connectionFactory
-            ->method('getConnection')
-            ->willReturn($this->solrConnection);
-
-        $this->solrConnection
-            ->method('getAdminService')
-            ->willReturn($this->adminService);
-
-        $this->adminService
-            ->method('ping')
-            ->willReturn(true);
-
-        $this->adminService
-            ->method('getPrimaryEndpoint')
-            ->willReturn($this->endpoint);
-
-        $this->endpoint
-            ->method('getCore')
-            ->willReturn('core_en');
-
-        $this->adminService
-            ->method('getSolrServerVersion')
-            ->willReturn('9.8.0');
-
-        $lukeData = new ResponseAdapter('{"index":{"numDocs":42}}', 200, 'OK');
-        $this->adminService
-            ->method('getLukeMetaData')
-            ->willReturn($lukeData);
+        $this->connectionFactory->method('getConnection')->willReturn($this->solrClient);
+        $this->solrClient->method('getCore')->willReturn('core_en');
+        $this->solrClient->method('ping')->willReturn(true);
+        $this->solrClient->method('getNumDocs')->willReturn(42);
+        $this->solrClient->method('getServerVersion')->willReturn('9.8.0');
 
         $healthData = $this->createDataProvider()->getHealthData();
 
@@ -77,32 +47,15 @@ class SolrHealthDataProviderTest extends TestCase
     #[Test]
     public function getHealthDataReturnsConnectedFalseWhenPingFails(): void
     {
-        $this->connectionFactory
-            ->method('getConnection')
-            ->willReturn($this->solrConnection);
-
-        $this->solrConnection
-            ->method('getAdminService')
-            ->willReturn($this->adminService);
-
-        $this->adminService
-            ->method('ping')
-            ->willReturn(false);
-
-        $this->adminService
-            ->method('getPrimaryEndpoint')
-            ->willReturn($this->endpoint);
-
-        $this->endpoint
-            ->method('getCore')
-            ->willReturn('core_de');
+        $this->connectionFactory->method('getConnection')->willReturn($this->solrClient);
+        $this->solrClient->method('getCore')->willReturn('core_de');
+        $this->solrClient->method('ping')->willReturn(false);
 
         $healthData = $this->createDataProvider()->getHealthData();
 
         self::assertFalse($healthData['connected']);
         self::assertSame('core_de', $healthData['core']);
         self::assertSame(0, $healthData['numDocs']);
-        self::assertSame('', $healthData['solrVersion']);
         self::assertSame('Ping failed', $healthData['error']);
     }
 
@@ -117,19 +70,16 @@ class SolrHealthDataProviderTest extends TestCase
 
         self::assertFalse($healthData['connected']);
         self::assertSame('', $healthData['core']);
-        self::assertSame(0, $healthData['numDocs']);
         self::assertSame('Connection refused', $healthData['error']);
     }
 
     #[Test]
-    public function getHealthDataReturnsConnectedFalseWhenAdminServiceThrowsOnPing(): void
+    public function getHealthDataReturnsConnectedFalseWhenPingThrows(): void
     {
-        $this->connectionFactory
-            ->method('getConnection')
-            ->willReturn($this->solrConnection);
-
-        $this->solrConnection
-            ->method('getAdminService')
+        $this->connectionFactory->method('getConnection')->willReturn($this->solrClient);
+        $this->solrClient->method('getCore')->willReturn('core_en');
+        $this->solrClient
+            ->method('ping')
             ->willThrowException(new \RuntimeException('Solr server unreachable'));
 
         $healthData = $this->createDataProvider()->getHealthData();
@@ -141,34 +91,11 @@ class SolrHealthDataProviderTest extends TestCase
     #[Test]
     public function getHealthDataHandlesZeroDocuments(): void
     {
-        $this->connectionFactory
-            ->method('getConnection')
-            ->willReturn($this->solrConnection);
-
-        $this->solrConnection
-            ->method('getAdminService')
-            ->willReturn($this->adminService);
-
-        $this->adminService
-            ->method('ping')
-            ->willReturn(true);
-
-        $this->adminService
-            ->method('getPrimaryEndpoint')
-            ->willReturn($this->endpoint);
-
-        $this->endpoint
-            ->method('getCore')
-            ->willReturn('core_en');
-
-        $lukeData = new ResponseAdapter('{"index":{"numDocs":0}}', 200, 'OK');
-        $this->adminService
-            ->method('getLukeMetaData')
-            ->willReturn($lukeData);
-
-        $this->adminService
-            ->method('getSolrServerVersion')
-            ->willReturn('9.8.0');
+        $this->connectionFactory->method('getConnection')->willReturn($this->solrClient);
+        $this->solrClient->method('getCore')->willReturn('core_en');
+        $this->solrClient->method('ping')->willReturn(true);
+        $this->solrClient->method('getNumDocs')->willReturn(0);
+        $this->solrClient->method('getServerVersion')->willReturn('9.8.0');
 
         $healthData = $this->createDataProvider()->getHealthData();
 

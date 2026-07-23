@@ -24,33 +24,52 @@ class SearchController extends ActionController
         return $this->htmlResponse();
     }
 
-    public function resultsAction(string $query = ''): ResponseInterface
+    public function resultsAction(string $query = '', string $type = '', int $page = 1): ResponseInterface
     {
         $ragEnabled = $this->resolveRagEnabled();
+        $perPage = max(1, (int) ($this->settings['resultsPerPage'] ?? 20));
+        $page = max(1, $page);
+        $typeFilter = $type !== '' ? $type : null;
 
         if (trim($query) === '') {
-            $this->view->assign('ragEnabled', $ragEnabled);
+            $this->view->assignMultiple([
+                'ragEnabled' => $ragEnabled,
+                'query' => $query,
+                'type' => $typeFilter,
+                'page' => $page,
+            ]);
+
             return $this->htmlResponse();
         }
 
         $language = $this->resolveCurrentLanguage();
+        $offset = ($page - 1) * $perPage;
 
-        $results = $this->searchService->search(
+        $resultPage = $this->searchService->search(
             $query,
-            (int) ($this->settings['resultsPerPage'] ?? 20),
-            0,
+            $perPage,
+            $offset,
             $language,
             $ragEnabled,
+            type: $typeFilter,
         );
 
-        $synthesisResult = $ragEnabled && $results !== []
-            ? $this->synthesisService->synthesise($query, $results, $ragEnabled)
+        $synthesisResult = $ragEnabled && $resultPage->results !== []
+            ? $this->synthesisService->synthesise($query, $resultPage->results, $ragEnabled)
             : null;
 
         $this->view->assignMultiple([
             'query' => $query,
-            'results' => $results,
-            'count' => count($results),
+            'type' => $typeFilter,
+            'results' => $resultPage->results,
+            'count' => $resultPage->total,
+            'types' => $resultPage->types,
+            'typeTotal' => array_sum($resultPage->types),
+            'page' => $resultPage->page,
+            'perPage' => $resultPage->perPage,
+            'totalPages' => $resultPage->getTotalPages(),
+            'prevPage' => $resultPage->page > 1 ? $resultPage->page - 1 : null,
+            'nextPage' => $resultPage->page < $resultPage->getTotalPages() ? $resultPage->page + 1 : null,
             'ragEnabled' => $ragEnabled,
             'synthesisResult' => $synthesisResult,
         ]);

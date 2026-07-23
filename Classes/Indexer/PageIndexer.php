@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Maispace\MaiSearch\Indexer;
 
-use ApacheSolrForTypo3\Solr\System\Solr\Document\Document;
 use Maispace\MaiSearch\Domain\Dto\SearchResult;
 use Maispace\MaiSearch\Domain\Model\IndexingContext;
 use Maispace\MaiSearch\Domain\Service\SearchResultFormatterInterface;
@@ -82,8 +81,8 @@ class PageIndexer extends AbstractIndexer implements SearchResultFormatterInterf
         }
 
         $connection = $this->connectionFactory->getConnection();
-        $connection->getWriteService()->deleteByQuery('id:' . $this->getType() . '-' . $uid);
-        $connection->getWriteService()->commit(false, false);
+        $connection->deleteByQuery('id:' . $this->getType() . '-' . $uid);
+        $connection->commit(false, false);
     }
 
     protected function buildContent(object $record, string $pageContentText = ''): string

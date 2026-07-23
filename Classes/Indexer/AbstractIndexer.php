@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Maispace\MaiSearch\Indexer;
 
-use ApacheSolrForTypo3\Solr\System\Solr\Document\Document;
 use Maispace\MaiSearch\Domain\Model\IndexingContext;
 use Maispace\MaiSearch\Domain\Service\IndexManagementService;
 use Maispace\MaiSearch\Domain\Service\SearchIndexerInterface;
 use Maispace\MaiSearch\Domain\Solr\ConnectionFactory;
+use Maispace\MaiSearch\Domain\Solr\Document;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Persistence\Generic\PersistenceManager;
 

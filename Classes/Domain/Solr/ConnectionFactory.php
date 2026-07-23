@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Maispace\MaiSearch\Domain\Solr;
 
-use ApacheSolrForTypo3\Solr\System\Solr\SolrConnection;
 use Solarium\Core\Client\Endpoint;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\SingletonInterface;
@@ -18,6 +17,7 @@ class ConnectionFactory implements SingletonInterface
     private const DEFAULT_PATH = '';
     private const DEFAULT_CORE = 'core_en';
     private const DEFAULT_SCHEME = 'http';
+    private const ENDPOINT_KEY = 'mai_search';
 
     private array $settings;
 
@@ -25,7 +25,7 @@ class ConnectionFactory implements SingletonInterface
         ?ExtensionConfiguration $extensionConfiguration = null,
     ) {
         $extensionConfiguration = $extensionConfiguration ?? GeneralUtility::makeInstance(ExtensionConfiguration::class);
-        
+
         try {
             $typoScriptSettings = $extensionConfiguration->get('mai_search');
         } catch (\Exception) {
@@ -49,7 +49,7 @@ class ConnectionFactory implements SingletonInterface
         ];
     }
 
-    public function getConnection(?SiteLanguage $language = null): SolrConnection
+    public function getConnection(?SiteLanguage $language = null): SolrClientInterface
     {
         $solrSettings = $this->settings['solr'] ?? [];
 
@@ -67,7 +67,7 @@ class ConnectionFactory implements SingletonInterface
      * Resolves a Solr connection via a language code (e.g. 'de', 'en') rather than a SiteLanguage object.
      * Useful for scheduler tasks and CLI commands where no frontend request exists.
      */
-    public function getConnectionForLanguageCode(string $languageCode): SolrConnection
+    public function getConnectionForLanguageCode(string $languageCode): SolrClientInterface
     {
         $solrSettings = $this->settings['solr'] ?? [];
         $core = $solrSettings['coreMapping'][$languageCode] ?? ($solrSettings['core'] ?? self::DEFAULT_CORE);
@@ -88,24 +88,23 @@ class ConnectionFactory implements SingletonInterface
     /**
      * @param array<string, mixed> $solrSettings
      */
-    protected function buildConnection(string $core, array $solrSettings): SolrConnection
+    protected function buildConnection(string $core, array $solrSettings): SolrClientInterface
     {
         $endpointSettings = $this->buildEndpointSettings($core, $solrSettings);
+        $endpoint = new Endpoint($endpointSettings);
 
-        $readEndpoint = new Endpoint($endpointSettings);
-        $writeEndpoint = new Endpoint($endpointSettings);
-
-        return new SolrConnection($readEndpoint, $writeEndpoint);
+        return new SolrClient($endpoint);
     }
 
     /**
      * @param array<string, mixed> $solrSettings
      *
-     * @return array{host: string, port: int, path: string, core: string, scheme: string}
+     * @return array{key: string, host: string, port: int, path: string, core: string, scheme: string}
      */
     protected function buildEndpointSettings(string $core, array $solrSettings): array
     {
         return [
+            'key' => self::ENDPOINT_KEY,
             'host' => $this->resolveEnvString('TYPO3_SOLR_HOST')
                 ?? ($solrSettings['host'] ?? self::DEFAULT_HOST),
             'port' => (int) ($this->resolveEnvString('TYPO3_SOLR_PORT')

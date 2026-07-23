@@ -1,7 +1,7 @@
 <html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
       data-namespace-typo3-fluid="true">
 
-<f:form action="results" method="post" name="search" class="search-form">
+<f:form action="results" method="get" name="search" class="search-form">
     <f:form.validationResults>
         <f:if condition="{validationResults.flattenedErrors}">
             <div class="search-form__errors" role="alert">
@@ -20,6 +20,9 @@
             placeholder="{f:translate(key: 'search.placeholder', default: 'Search...')}"
             class="search-form__input"
         />
+        <f:if condition="{type}">
+            <f:form.hidden name="type" value="{type}" />
+        </f:if>
         <f:form.submit
             value="{f:translate(key: 'search.submit', default: 'Search')}"
             class="search-form__submit"
@@ -53,6 +56,35 @@
     </f:if>
 </f:if>
 
+<f:if condition="{types}">
+    <nav class="search-filters" aria-label="{f:translate(key: 'search.filters.label', default: 'Filter by type')}">
+        <ul class="search-filters__list">
+            <li class="search-filters__item">
+                <f:link.action
+                    action="results"
+                    arguments="{query: query, page: 1}"
+                    class="search-filters__link{f:if(condition: '!{type}', then: ' is-active')}"
+                >
+                    <f:translate key="search.filters.all" default="All" />
+                    <span class="search-filters__count">({typeTotal})</span>
+                </f:link.action>
+            </li>
+            <f:for each="{types}" as="typeCount" key="typeKey">
+                <li class="search-filters__item">
+                    <f:link.action
+                        action="results"
+                        arguments="{query: query, type: typeKey, page: 1}"
+                        class="search-filters__link{f:if(condition: '{type} == {typeKey}', then: ' is-active')}"
+                    >
+                        {typeKey}
+                        <span class="search-filters__count">({typeCount})</span>
+                    </f:link.action>
+                </li>
+            </f:for>
+        </ul>
+    </nav>
+</f:if>
+
 <div class="search-results" data-testid="search-results">
     <p class="search-results__count">
         <f:translate
@@ -83,6 +115,42 @@
                     </li>
                 </f:for>
             </ol>
+
+            <f:if condition="{totalPages} > 1">
+                <nav class="search-pagination" aria-label="{f:translate(key: 'search.pagination.label', default: 'Search results pages')}">
+                    <ul class="search-pagination__list">
+                        <f:if condition="{prevPage}">
+                            <li class="search-pagination__item">
+                                <f:link.action
+                                    action="results"
+                                    arguments="{query: query, type: type, page: prevPage}"
+                                    class="search-pagination__link"
+                                >
+                                    <f:translate key="search.pagination.prev" default="Previous" />
+                                </f:link.action>
+                            </li>
+                        </f:if>
+                        <li class="search-pagination__item search-pagination__status">
+                            <f:translate
+                                key="search.pagination.status"
+                                arguments="{0: page, 1: totalPages}"
+                                default="Page {page} of {totalPages}"
+                            />
+                        </li>
+                        <f:if condition="{nextPage}">
+                            <li class="search-pagination__item">
+                                <f:link.action
+                                    action="results"
+                                    arguments="{query: query, type: type, page: nextPage}"
+                                    class="search-pagination__link"
+                                >
+                                    <f:translate key="search.pagination.next" default="Next" />
+                                </f:link.action>
+                            </li>
+                        </f:if>
+                    </ul>
+                </nav>
+            </f:if>
         </f:then>
         <f:else>
             <p class="search-results__none" data-testid="search-no-results">

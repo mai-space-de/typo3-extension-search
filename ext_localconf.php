@@ -19,9 +19,23 @@ ExtensionUtility::configurePlugin(
     [
         \Maispace\MaiSearch\Controller\SearchController::class => 'form, results',
     ],
-    [],
+    [
+        // results must not be page-cached: POST redirects omit the query in the
+        // URL, so a shared cHash would otherwise serve the previous search.
+        \Maispace\MaiSearch\Controller\SearchController::class => 'results',
+    ],
     ExtensionUtility::PLUGIN_TYPE_CONTENT_ELEMENT,
 );
+
+// Allow GET search forms to append query/type/page without invalidating cHash.
+$GLOBALS['TYPO3_CONF_VARS']['FE']['cacheHash']['excludedParameters'] = array_values(array_unique(array_merge(
+    (array) ($GLOBALS['TYPO3_CONF_VARS']['FE']['cacheHash']['excludedParameters'] ?? []),
+    [
+        'tx_maisearch_search[query]',
+        'tx_maisearch_search[type]',
+        'tx_maisearch_search[page]',
+    ],
+)));
 
 ExtensionManagementUtility::addTypoScript(
     'mai_search',
