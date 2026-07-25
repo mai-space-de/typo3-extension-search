@@ -37,6 +37,10 @@ services:
   Maispace\MaiSearch\Scheduler\FullReindexTask:
     public: true
 
+  # DataHandler instantiates hooks via GeneralUtility::makeInstance() — must be public for DI
+  Maispace\MaiSearch\Hook\DataHandlerHook:
+    public: true
+
   dashboard.widget.solr_health:
     class: 'Maispace\MaiSearch\Widget\SolrHealthWidget'
     tags:

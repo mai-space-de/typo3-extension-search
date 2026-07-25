@@ -6,9 +6,13 @@ namespace Maispace\MaiSearch\Hook;
 
 use Maispace\MaiSearch\Domain\Model\IndexingContext;
 use Maispace\MaiSearch\Service\IndexerRegistry;
+use Psr\Log\LoggerInterface;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
+use TYPO3\CMS\Core\Messaging\FlashMessage;
+use TYPO3\CMS\Core\Messaging\FlashMessageService;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -17,13 +21,19 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  * Hooks:
  *   processDatamap_afterDatabaseOperations — re-index the record after save.
  *   processCmdmap_deleteAction             — remove the document from Solr on delete.
+ *
+ * Solr connectivity failures must never abort the DataHandler save/delete —
+ * they are logged and surfaced as a backend flash message at most.
  */
 class DataHandlerHook
 {
     private readonly IndexerRegistry $indexerRegistry;
 
-    public function __construct(?IndexerRegistry $indexerRegistry = null)
-    {
+    public function __construct(
+        ?IndexerRegistry $indexerRegistry = null,
+        private readonly ?FlashMessageService $flashMessageService = null,
+        private readonly ?LoggerInterface $logger = null,
+    ) {
         $this->indexerRegistry = $indexerRegistry
             ?? GeneralUtility::makeInstance(IndexerRegistry::class);
     }
@@ -65,7 +75,16 @@ class DataHandlerHook
             return;
         }
 
-        $indexer->indexRecord($record, new IndexingContext(core: ''));
+        try {
+            $indexer->indexRecord($record, new IndexingContext(core: ''));
+        } catch (\Throwable $exception) {
+            $this->handleIndexingFailure(
+                'index',
+                $table,
+                $uid,
+                $exception,
+            );
+        }
     }
 
     /**
@@ -89,7 +108,16 @@ class DataHandlerHook
             return;
         }
 
-        $indexer->removeRecord($id, $table);
+        try {
+            $indexer->removeRecord($id, $table);
+        } catch (\Throwable $exception) {
+            $this->handleIndexingFailure(
+                'remove',
+                $table,
+                $id,
+                $exception,
+            );
+        }
     }
 
     /**
@@ -123,5 +151,67 @@ class DataHandlerHook
         }
 
         return $obj;
+    }
+
+    private function handleIndexingFailure(
+        string $operation,
+        string $table,
+        int $uid,
+        \Throwable $exception,
+    ): void {
+        $this->logger?->warning(
+            'Solr {operation} failed for {table}:{uid}: {message}',
+            [
+                'operation' => $operation,
+                'table' => $table,
+                'uid' => $uid,
+                'message' => $exception->getMessage(),
+                'exception' => $exception,
+            ],
+        );
+
+        $title = $this->translate('hook.indexingFailed.title');
+        $message = sprintf(
+            $this->translate('hook.indexingFailed.message'),
+            $table,
+            $uid,
+            $exception->getMessage(),
+        );
+
+        $this->enqueueFlashMessage($message, $title);
+    }
+
+    private function enqueueFlashMessage(string $message, string $title): void
+    {
+        $flashMessageService = $this->flashMessageService
+            ?? GeneralUtility::makeInstance(FlashMessageService::class);
+
+        $flashMessage = GeneralUtility::makeInstance(
+            FlashMessage::class,
+            $message,
+            $title,
+            ContextualFeedbackSeverity::WARNING,
+            true,
+        );
+
+        $flashMessageService->getMessageQueueByIdentifier()->enqueue($flashMessage);
+    }
+
+    private function translate(string $key): string
+    {
+        $label = 'LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:' . $key;
+
+        if (isset($GLOBALS['LANG']) && is_object($GLOBALS['LANG']) && method_exists($GLOBALS['LANG'], 'sL')) {
+            $translated = (string) $GLOBALS['LANG']->sL($label);
+            if ($translated !== '' && $translated !== $label) {
+                return $translated;
+            }
+        }
+
+        return match ($key) {
+            'hook.indexingFailed.title' => 'Search index update failed',
+            'hook.indexingFailed.message' => 'The record was saved, but Solr indexing failed for %s:%d (%s).',
+            default => $key,
+        };
     }
 }

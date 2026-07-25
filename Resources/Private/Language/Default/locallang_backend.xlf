@@ -75,6 +75,12 @@
             <trans-unit id="index.noIndexers">
                 <source>No indexers are currently registered.</source>
             </trans-unit>
+            <trans-unit id="hook.indexingFailed.title">
+                <source>Search index update failed</source>
+            </trans-unit>
+            <trans-unit id="hook.indexingFailed.message">
+                <source>The record was saved, but Solr indexing failed for %s:%d (%s).</source>
+            </trans-unit>
         </body>
     </file>
 </xliff>
