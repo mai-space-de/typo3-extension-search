@@ -1,32 +1,37 @@
 <html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+      xmlns:maiTurbo="http://typo3.org/ns/Maispace/MaiTurbo/ViewHelpers"
       data-namespace-typo3-fluid="true">
 
-<f:form action="results" method="post" name="search" class="search-form">
-    <f:form.validationResults>
-        <f:if condition="{validationResults.flattenedErrors}">
-            <div class="search-form__errors" role="alert">
-                <f:for each="{validationResults.flattenedErrors}" as="errors" key="propertyName">
-                    <f:for each="{errors}" as="error">
-                        <p class="search-form__error">{error.message}</p>
-                    </f:for>
-                </f:for>
+<maiTurbo:context.plugin>
+    <maiTurbo:frame id="mai-search-results">
+        <f:form action="results" method="get" name="search" class="search-form">
+            <f:form.validationResults>
+                <f:if condition="{validationResults.flattenedErrors}">
+                    <div class="search-form__errors" role="alert">
+                        <f:for each="{validationResults.flattenedErrors}" as="errors" key="propertyName">
+                            <f:for each="{errors}" as="error">
+                                <p class="search-form__error">{error.message}</p>
+                            </f:for>
+                        </f:for>
+                    </div>
+                </f:if>
+            </f:form.validationResults>
+            <div class="search-form__field">
+                <f:form.textfield
+                    name="query"
+                    value="{query}"
+                    placeholder="{f:translate(key: 'search.placeholder', default: 'Search...')}"
+                    class="search-form__input"
+                    additionalAttributes="{autocomplete: 'off', 'data-testid': 'search-input'}"
+                />
+                <f:form.submit
+                    value="{f:translate(key: 'search.submit', default: 'Search')}"
+                    class="search-form__submit"
+                    additionalAttributes="{'data-testid': 'search-submit'}"
+                />
             </div>
-        </f:if>
-    </f:form.validationResults>
-    <div class="search-form__field">
-        <f:form.textfield
-            name="query"
-            value="{query}"
-            placeholder="{f:translate(key: 'search.placeholder', default: 'Search...')}"
-            class="search-form__input"
-            additionalAttributes="{autocomplete: 'off', 'data-testid': 'search-input'}"
-        />
-        <f:form.submit
-            value="{f:translate(key: 'search.submit', default: 'Search')}"
-            class="search-form__submit"
-            additionalAttributes="{'data-testid': 'search-submit'}"
-        />
-    </div>
-</f:form>
+        </f:form>
+    </maiTurbo:frame>
+</maiTurbo:context.plugin>
 
 </html>

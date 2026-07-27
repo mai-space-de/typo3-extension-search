@@ -17,11 +17,12 @@ class SearchController extends ActionController
         private readonly SearchSynthesisService $synthesisService,
     ) {}
 
+    /**
+     * Legacy entry point — plugin registers `results` only; delegates for BC.
+     */
     public function formAction(): ResponseInterface
     {
-        $this->view->assign('ragEnabled', $this->resolveRagEnabled());
-
-        return $this->htmlResponse();
+        return $this->resultsAction();
     }
 
     public function resultsAction(string $query = '', string $type = '', int $page = 1): ResponseInterface

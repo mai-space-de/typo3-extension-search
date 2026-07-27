@@ -17,23 +17,21 @@ ExtensionUtility::configurePlugin(
     'MaiSearch',
     'Search',
     [
-        \Maispace\MaiSearch\Controller\SearchController::class => 'form, results',
+        \Maispace\MaiSearch\Controller\SearchController::class => 'results',
     ],
     [
-        // results must not be page-cached: POST redirects omit the query in the
-        // URL, so a shared cHash would otherwise serve the previous search.
+        // Dynamic Solr results; GET query/type/page params are cacheHash-excluded below.
         \Maispace\MaiSearch\Controller\SearchController::class => 'results',
     ],
     ExtensionUtility::PLUGIN_TYPE_CONTENT_ELEMENT,
 );
 
-// Allow GET search forms to append query/type/page without invalidating cHash.
+// Allow all GET plugin parameters (form submit, filters, pagination) without cHash.
+// f:form method="get" still emits __referrer / __trustedProperties — exclude the whole namespace.
 $GLOBALS['TYPO3_CONF_VARS']['FE']['cacheHash']['excludedParameters'] = array_values(array_unique(array_merge(
     (array) ($GLOBALS['TYPO3_CONF_VARS']['FE']['cacheHash']['excludedParameters'] ?? []),
     [
-        'tx_maisearch_search[query]',
-        'tx_maisearch_search[type]',
-        'tx_maisearch_search[page]',
+        '^tx_maisearch_search',
     ],
 )));
 

@@ -1,163 +1,168 @@
 <html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+      xmlns:maiTurbo="http://typo3.org/ns/Maispace/MaiTurbo/ViewHelpers"
       data-namespace-typo3-fluid="true">
 
-<f:form action="results" method="get" name="search" class="search-form">
-    <f:form.validationResults>
-        <f:if condition="{validationResults.flattenedErrors}">
-            <div class="search-form__errors" role="alert">
-                <f:for each="{validationResults.flattenedErrors}" as="errors" key="propertyName">
-                    <f:for each="{errors}" as="error">
-                        <p class="search-form__error">{error.message}</p>
-                    </f:for>
-                </f:for>
-            </div>
-        </f:if>
-    </f:form.validationResults>
-    <div class="search-form__field">
-        <f:form.textfield
-            name="query"
-            value="{query}"
-            placeholder="{f:translate(key: 'search.placeholder', default: 'Search...')}"
-            class="search-form__input"
-        />
-        <f:if condition="{type}">
-            <f:form.hidden name="type" value="{type}" />
-        </f:if>
-        <f:form.submit
-            value="{f:translate(key: 'search.submit', default: 'Search')}"
-            class="search-form__submit"
-        />
-    </div>
-</f:form>
-
-<f:if condition="{synthesisResult}">
-    <f:if condition="{synthesisResult.answer}">
-        <div class="search-synthesis">
-            <div class="search-synthesis__answer">
-                {synthesisResult.answer}
-            </div>
-            <f:if condition="{synthesisResult.sources}">
-                <div class="search-synthesis__sources">
-                    <h4 class="search-synthesis__sources-heading">
-                        <f:translate key="search.synthesis.sources" default="Sources" />
-                    </h4>
-                    <ul class="search-synthesis__sources-list">
-                        <f:for each="{synthesisResult.sources}" as="source">
-                            <li class="search-synthesis__sources-item">
-                                <a href="{source.url}" class="search-synthesis__sources-link">
-                                    {source.title}
-                                </a>
-                            </li>
+<maiTurbo:context.plugin>
+    <maiTurbo:frame id="mai-search-results">
+        <f:form action="results" method="get" name="search" class="search-form">
+            <f:form.validationResults>
+                <f:if condition="{validationResults.flattenedErrors}">
+                    <div class="search-form__errors" role="alert">
+                        <f:for each="{validationResults.flattenedErrors}" as="errors" key="propertyName">
+                            <f:for each="{errors}" as="error">
+                                <p class="search-form__error">{error.message}</p>
+                            </f:for>
                         </f:for>
-                    </ul>
+                    </div>
+                </f:if>
+            </f:form.validationResults>
+            <div class="search-form__field">
+                <f:form.textfield
+                    name="query"
+                    value="{query}"
+                    placeholder="{f:translate(key: 'search.placeholder', default: 'Search...')}"
+                    class="search-form__input"
+                />
+                <f:if condition="{type}">
+                    <f:form.hidden name="type" value="{type}" />
+                </f:if>
+                <f:form.submit
+                    value="{f:translate(key: 'search.submit', default: 'Search')}"
+                    class="search-form__submit"
+                />
+            </div>
+        </f:form>
+
+        <f:if condition="{synthesisResult}">
+            <f:if condition="{synthesisResult.answer}">
+                <div class="search-synthesis">
+                    <div class="search-synthesis__answer">
+                        {synthesisResult.answer}
+                    </div>
+                    <f:if condition="{synthesisResult.sources}">
+                        <div class="search-synthesis__sources">
+                            <h4 class="search-synthesis__sources-heading">
+                                <f:translate key="search.synthesis.sources" default="Sources" />
+                            </h4>
+                            <ul class="search-synthesis__sources-list">
+                                <f:for each="{synthesisResult.sources}" as="source">
+                                    <li class="search-synthesis__sources-item">
+                                        <a href="{source.url}" class="search-synthesis__sources-link" data-turbo-frame="_top">
+                                            {source.title}
+                                        </a>
+                                    </li>
+                                </f:for>
+                            </ul>
+                        </div>
+                    </f:if>
                 </div>
             </f:if>
-        </div>
-    </f:if>
-</f:if>
+        </f:if>
 
-<f:if condition="{types}">
-    <nav class="search-filters" aria-label="{f:translate(key: 'search.filters.label', default: 'Filter by type')}">
-        <ul class="search-filters__list">
-            <li class="search-filters__item">
-                <f:link.action
-                    action="results"
-                    arguments="{query: query, page: 1}"
-                    class="search-filters__link{f:if(condition: '!{type}', then: ' is-active')}"
-                >
-                    <f:translate key="search.filters.all" default="All" />
-                    <span class="search-filters__count">({typeTotal})</span>
-                </f:link.action>
-            </li>
-            <f:for each="{types}" as="typeCount" key="typeKey">
-                <li class="search-filters__item">
-                    <f:link.action
-                        action="results"
-                        arguments="{query: query, type: typeKey, page: 1}"
-                        class="search-filters__link{f:if(condition: '{type} == {typeKey}', then: ' is-active')}"
-                    >
-                        {typeKey}
-                        <span class="search-filters__count">({typeCount})</span>
-                    </f:link.action>
-                </li>
-            </f:for>
-        </ul>
-    </nav>
-</f:if>
-
-<div class="search-results" data-testid="search-results">
-    <p class="search-results__count">
-        <f:translate
-            key="search.results.count"
-            arguments="{0: count, 1: query}"
-            default="{count} results for &quot;{query}&quot;"
-        />
-    </p>
-
-    <f:if condition="{results}">
-        <f:then>
-            <ol class="search-results__list">
-                <f:for each="{results}" as="result">
-                    <li class="search-results__item" data-testid="search-result-item">
-                        <a href="{result.url}" class="search-results__link">
-                            <span class="search-results__icon">{result.icon}</span>
-                            <span class="search-results__title">{result.title}</span>
-                        </a>
-                        <p class="search-results__snippet">{result.snippet}</p>
-                        <span class="search-results__meta">
-                            <span class="search-results__score">{result.score}</span>
-                            <f:if condition="{result.date}">
-                                <time class="search-results__date" datetime="{result.date -> f:format.date(format: 'Y-m-d')}">
-                                    {result.date -> f:format.date()}
-                                </time>
-                            </f:if>
-                        </span>
+        <f:if condition="{types}">
+            <nav class="search-filters" aria-label="{f:translate(key: 'search.filters.label', default: 'Filter by type')}">
+                <ul class="search-filters__list">
+                    <li class="search-filters__item">
+                        <f:link.action
+                            action="results"
+                            arguments="{query: query, page: 1}"
+                            class="search-filters__link{f:if(condition: '!{type}', then: ' is-active')}"
+                        >
+                            <f:translate key="search.filters.all" default="All" />
+                            <span class="search-filters__count">({typeTotal})</span>
+                        </f:link.action>
                     </li>
-                </f:for>
-            </ol>
-
-            <f:if condition="{totalPages} > 1">
-                <nav class="search-pagination" aria-label="{f:translate(key: 'search.pagination.label', default: 'Search results pages')}">
-                    <ul class="search-pagination__list">
-                        <f:if condition="{prevPage}">
-                            <li class="search-pagination__item">
-                                <f:link.action
-                                    action="results"
-                                    arguments="{query: query, type: type, page: prevPage}"
-                                    class="search-pagination__link"
-                                >
-                                    <f:translate key="search.pagination.prev" default="Previous" />
-                                </f:link.action>
-                            </li>
-                        </f:if>
-                        <li class="search-pagination__item search-pagination__status">
-                            <f:translate
-                                key="search.pagination.status"
-                                arguments="{0: page, 1: totalPages}"
-                                default="Page {page} of {totalPages}"
-                            />
+                    <f:for each="{types}" as="typeCount" key="typeKey">
+                        <li class="search-filters__item">
+                            <f:link.action
+                                action="results"
+                                arguments="{query: query, type: typeKey, page: 1}"
+                                class="search-filters__link{f:if(condition: '{type} == {typeKey}', then: ' is-active')}"
+                            >
+                                {typeKey}
+                                <span class="search-filters__count">({typeCount})</span>
+                            </f:link.action>
                         </li>
-                        <f:if condition="{nextPage}">
-                            <li class="search-pagination__item">
-                                <f:link.action
-                                    action="results"
-                                    arguments="{query: query, type: type, page: nextPage}"
-                                    class="search-pagination__link"
-                                >
-                                    <f:translate key="search.pagination.next" default="Next" />
-                                </f:link.action>
-                            </li>
-                        </f:if>
-                    </ul>
-                </nav>
-            </f:if>
-        </f:then>
-        <f:else>
-            <p class="search-results__none" data-testid="search-no-results">
-                <f:translate key="search.results.none" default="No results found." />
+                    </f:for>
+                </ul>
+            </nav>
+        </f:if>
+
+        <div class="search-results" data-testid="search-results">
+            <p class="search-results__count">
+                <f:translate
+                    key="search.results.count"
+                    arguments="{0: count, 1: query}"
+                    default="{count} results for &quot;{query}&quot;"
+                />
             </p>
-        </f:else>
-    </f:if>
-</div>
+
+            <f:if condition="{results}">
+                <f:then>
+                    <ol class="search-results__list">
+                        <f:for each="{results}" as="result">
+                            <li class="search-results__item" data-testid="search-result-item">
+                                <a href="{result.url}" class="search-results__link" data-turbo-frame="_top">
+                                    <span class="search-results__icon">{result.icon}</span>
+                                    <span class="search-results__title">{result.title}</span>
+                                </a>
+                                <p class="search-results__snippet">{result.snippet}</p>
+                                <span class="search-results__meta">
+                                    <span class="search-results__score">{result.score}</span>
+                                    <f:if condition="{result.date}">
+                                        <time class="search-results__date" datetime="{result.date -> f:format.date(format: 'Y-m-d')}">
+                                            {result.date -> f:format.date()}
+                                        </time>
+                                    </f:if>
+                                </span>
+                            </li>
+                        </f:for>
+                    </ol>
+
+                    <f:if condition="{totalPages} > 1">
+                        <nav class="search-pagination" aria-label="{f:translate(key: 'search.pagination.label', default: 'Search results pages')}">
+                            <ul class="search-pagination__list">
+                                <f:if condition="{prevPage}">
+                                    <li class="search-pagination__item">
+                                        <f:link.action
+                                            action="results"
+                                            arguments="{query: query, type: type, page: prevPage}"
+                                            class="search-pagination__link"
+                                        >
+                                            <f:translate key="search.pagination.prev" default="Previous" />
+                                        </f:link.action>
+                                    </li>
+                                </f:if>
+                                <li class="search-pagination__item search-pagination__status">
+                                    <f:translate
+                                        key="search.pagination.status"
+                                        arguments="{0: page, 1: totalPages}"
+                                        default="Page {page} of {totalPages}"
+                                    />
+                                </li>
+                                <f:if condition="{nextPage}">
+                                    <li class="search-pagination__item">
+                                        <f:link.action
+                                            action="results"
+                                            arguments="{query: query, type: type, page: nextPage}"
+                                            class="search-pagination__link"
+                                        >
+                                            <f:translate key="search.pagination.next" default="Next" />
+                                        </f:link.action>
+                                    </li>
+                                </f:if>
+                            </ul>
+                        </nav>
+                    </f:if>
+                </f:then>
+                <f:else>
+                    <p class="search-results__none" data-testid="search-no-results">
+                        <f:translate key="search.results.none" default="No results found." />
+                    </p>
+                </f:else>
+            </f:if>
+        </div>
+    </maiTurbo:frame>
+</maiTurbo:context.plugin>
 
 </html>

@@ -6,7 +6,7 @@
 
 ## Search Results
 
-* Results page — paginated search results with relevance ranking
+* Results page — paginated search results with relevance ranking; the Search plugin exposes only the `results` action (GET). Theme and extension templates wrap the plugin in a `mai_turbo` frame (`mai-search-results`) so the initial `/suche` view, form submit, filters, and pagination update in place without a full page reload
 * Type filtering — filter results by content type (`type_s`: news, page, events, …) including facet counts that stay visible while a type filter is active
 * Own Solr client — Solarium-backed `SolrClient` in `mai_search` (no `ext-solr` dependency)
 * Live search suggestions — optional AJAX-based autocomplete for the search field
