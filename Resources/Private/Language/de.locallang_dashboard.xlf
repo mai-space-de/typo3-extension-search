@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+    <file source-language="en" target-language="de" datatype="plaintext" original="EXT:mai_search/Resources/Private/Language/locallang_dashboard.xlf"
+          date="2025-01-01T00:00:00Z" product-name="mai_search">
+        <header/>
+        <body>
+            <trans-unit id="widgets.solrHealth.title">
+                <source>Solr Connection Health</source>
+                <target>Solr-Verbindungsstatus</target>
+            </trans-unit>
+            <trans-unit id="widgets.solrHealth.description">
+                <source>Shows Solr core connectivity, indexed document count and server version.</source>
+                <target>Zeigt die Erreichbarkeit des Solr-Cores, die Anzahl indexierter Dokumente und die Serverversion.</target>
+            </trans-unit>
+            <trans-unit id="widgets.solrHealth.connected">
+                <source>Connected</source>
+                <target>Verbunden</target>
+            </trans-unit>
+            <trans-unit id="widgets.solrHealth.disconnected">
+                <source>Disconnected</source>
+                <target>Nicht verbunden</target>
+            </trans-unit>
+            <trans-unit id="widgets.solrHealth.core">
+                <source>Core</source>
+                <target>Core</target>
+            </trans-unit>
+            <trans-unit id="widgets.solrHealth.numDocs">
+                <source>Documents</source>
+                <target>Dokumente</target>
+            </trans-unit>
+            <trans-unit id="widgets.solrHealth.solrVersion">
+                <source>Solr Version</source>
+                <target>Solr-Version</target>
+            </trans-unit>
+        </body>
+    </file>
+</xliff>

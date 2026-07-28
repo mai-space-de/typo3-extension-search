@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+    <file source-language="en" target-language="de" datatype="plaintext" original="messages"
+          date="2025-01-01T00:00:00Z" product-name="mai_search">
+        <header/>
+        <body>
+            <trans-unit id="index.title">
+                <source>Search Index Management</source>
+                <target>Suchindex-Verwaltung</target>
+            </trans-unit>
+            <trans-unit id="index.solrCores">
+                <source>Solr Cores</source>
+                <target>Solr-Cores</target>
+            </trans-unit>
+            <trans-unit id="index.indexers">
+                <source>Registered Indexers</source>
+                <target>Registrierte Indexer</target>
+            </trans-unit>
+            <trans-unit id="index.languages">
+                <source>Languages Indexed</source>
+                <target>Indexierte Sprachen</target>
+            </trans-unit>
+            <trans-unit id="index.totalDocuments">
+                <source>Indexed Documents</source>
+                <target>Indexierte Dokumente</target>
+            </trans-unit>
+            <trans-unit id="index.actions.title">
+                <source>Actions</source>
+                <target>Aktionen</target>
+            </trans-unit>
+            <trans-unit id="index.reindex.title">
+                <source>Re-index all content across all cores</source>
+                <target>Alle Inhalte über alle Cores neu indexieren</target>
+            </trans-unit>
+            <trans-unit id="index.reindex.button">
+                <source>Re-index All</source>
+                <target>Alles neu indexieren</target>
+            </trans-unit>
+            <trans-unit id="index.clear.title">
+                <source>Clear the entire search index</source>
+                <target>Den gesamten Suchindex leeren</target>
+            </trans-unit>
+            <trans-unit id="index.clear.button">
+                <source>Clear Index</source>
+                <target>Index leeren</target>
+            </trans-unit>
+            <trans-unit id="index.clear.confirm">
+                <source>Are you sure you want to clear the entire search index? This action cannot be undone.</source>
+                <target>Soll der gesamte Suchindex wirklich geleert werden? Diese Aktion kann nicht rückgängig gemacht werden.</target>
+            </trans-unit>
+            <trans-unit id="index.inspect.title">
+                <source>Index Inspection</source>
+                <target>Indexprüfung</target>
+            </trans-unit>
+            <trans-unit id="index.inspect.coreLabel">
+                <source>Core: %1$s (%2$s)</source>
+                <target>Core: %1$s (%2$s)</target>
+            </trans-unit>
+            <trans-unit id="index.inspect.documentsInCore">
+                <source>Total documents: %1$d</source>
+                <target>Dokumente insgesamt: %1$d</target>
+            </trans-unit>
+            <trans-unit id="index.inspect.type">
+                <source>Document Type</source>
+                <target>Dokumenttyp</target>
+            </trans-unit>
+            <trans-unit id="index.inspect.count">
+                <source>Count</source>
+                <target>Anzahl</target>
+            </trans-unit>
+            <trans-unit id="index.inspect.noData">
+                <source>No inspection data available. Solr may be unreachable or the index is empty.</source>
+                <target>Keine Prüfdaten verfügbar. Solr ist möglicherweise nicht erreichbar oder der Index ist leer.</target>
+            </trans-unit>
+            <trans-unit id="index.coreMapping.title">
+                <source>Core Mapping</source>
+                <target>Core-Zuordnung</target>
+            </trans-unit>
+            <trans-unit id="index.coreMapping.language">
+                <source>Language Code</source>
+                <target>Sprachcode</target>
+            </trans-unit>
+            <trans-unit id="index.coreMapping.core">
+                <source>Solr Core</source>
+                <target>Solr-Core</target>
+            </trans-unit>
+            <trans-unit id="index.noCoreMapping">
+                <source>No per-language core mapping configured. Using default core.</source>
+                <target>Keine sprachspezifische Core-Zuordnung konfiguriert. Es wird der Standard-Core verwendet.</target>
+            </trans-unit>
+            <trans-unit id="index.indexerTypes.title">
+                <source>Registered Indexer Types</source>
+                <target>Registrierte Indexer-Typen</target>
+            </trans-unit>
+            <trans-unit id="index.indexerTypes.type">
+                <source>Type</source>
+                <target>Typ</target>
+            </trans-unit>
+            <trans-unit id="index.noIndexers">
+                <source>No indexers are currently registered.</source>
+                <target>Es sind derzeit keine Indexer registriert.</target>
+            </trans-unit>
+            <trans-unit id="hook.indexingFailed.title">
+                <source>Search index update failed</source>
+                <target>Aktualisierung des Suchindex fehlgeschlagen</target>
+            </trans-unit>
+            <trans-unit id="hook.indexingFailed.message">
+                <source>The record was saved, but Solr indexing failed for %s:%d (%s).</source>
+                <target>Der Datensatz wurde gespeichert, aber die Solr-Indexierung ist fehlgeschlagen für %s:%d (%s).</target>
+            </trans-unit>
+        </body>
+    </file>
+</xliff>
