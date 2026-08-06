@@ -4,17 +4,27 @@ declare(strict_types=1);
 
 namespace Maispace\MaiSearch\Tests\Unit\Indexer;
 
+use Maispace\MaiSearch\Domain\Service\SearchBackendInterface;
 use Maispace\MaiSearch\Indexer\PageIndexer;
+use Maispace\MaiSearch\Service\BackendRegistry;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 final class PageIndexerTest extends TestCase
 {
     private PageIndexer $subject;
+    private BackendRegistry&MockObject $backendRegistry;
+    private SearchBackendInterface&MockObject $activeBackend;
 
     protected function setUp(): void
     {
         $this->subject = new PageIndexer();
+
+        $this->activeBackend = $this->createMock(SearchBackendInterface::class);
+        $this->backendRegistry = $this->createMock(BackendRegistry::class);
+        $this->backendRegistry->method('getActive')->willReturn($this->activeBackend);
+        $this->subject->injectBackendRegistry($this->backendRegistry);
     }
 
     #[Test]
@@ -230,6 +240,25 @@ final class PageIndexerTest extends TestCase
         self::assertNotNull($result->rootline);
         self::assertCount(1, $result->rootline);
         self::assertSame('Home', $result->rootline[0]);
+    }
+
+    #[Test]
+    public function removeRecordDelegatesToActiveBackendForPagesTable(): void
+    {
+        $this->activeBackend
+            ->expects(self::once())
+            ->method('removeDocument')
+            ->with('page', 42);
+
+        $this->subject->removeRecord(42, 'pages');
+    }
+
+    #[Test]
+    public function removeRecordIsNoOpForUnsupportedTable(): void
+    {
+        $this->activeBackend->expects(self::never())->method('removeDocument');
+
+        $this->subject->removeRecord(42, 'tx_mainews_news');
     }
 
     private function invokeBuildContent(object $record, string $pageContentText = ''): string

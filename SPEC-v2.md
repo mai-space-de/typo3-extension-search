@@ -419,25 +419,73 @@ redesigning `AbstractIndexer` to build `SearchDocumentInput` and call
 indexer a second Meilisearch-aware code path — real, cross-package work
 touching all ten extensions, correctly out of scope for a single phase.
 
-### Phase 2c — Route existing indexers through BackendRegistry (P0, not started)
+### Phase 2c — Route existing indexers through BackendRegistry (P0) — ✅ write path done
 
-Split out from Phase 2b's original scope after confirming (above) that it's
-real, cross-package work, not a byproduct of the backend/provider work.
+Split out from Phase 2b's original scope after confirming it's real,
+cross-package work, not a byproduct of the backend/provider work.
 
-- [ ] Redesign `AbstractIndexer` so `indexRecord()`/`removeRecord()` build a
-      `SearchDocumentInput` and call `BackendRegistry::getActive()->
-      indexDocument()`/`removeDocument()`, instead of each indexer building a
-      `Domain\Solr\Document` and calling `Domain\Solr\ConnectionFactory` directly.
-- [ ] Update all ten indexers (`NewsIndexer`, `FaqIndexer`, `GalleryIndexer`,
+- [x] Redesigned `AbstractIndexer`: `createDocument()` now returns a
+      `SearchDocumentInput` (was `Domain\Solr\Document`); `sendDocument()` now
+      calls `BackendRegistry::getActive()->indexDocument()` (was
+      `IndexManagementService::addDocumentForLanguageCode()` directly); new
+      `removeDocument(int $uid)` helper calls
+      `BackendRegistry::getActive()->removeDocument($this->getType(), $uid)`.
+  - **`ConnectionFactory`/`PersistenceManager` removed from `AbstractIndexer`
+        entirely**, not just unused — confirmed via a full grep across all ten
+        sibling extensions that `connectionFactory` was referenced *only*
+        inside each `removeRecord()`'s direct-deletion call, and
+        `persistenceManager` was injected but never read anywhere, in
+        `AbstractIndexer` or any subclass. Both were dead weight once
+        `removeDocument()` existed.
+  - **Turned out to need zero changes to any indexRecord() body across all ten
+        extensions.** Every indexer's `indexRecord()` calls `$this->
+        createDocument(...)` and passes the result straight to `$this->
+        sendDocument($document)` with no local type hint — pure duck typing.
+        Changing what `AbstractIndexer` returns/accepts was enough; only
+        `removeRecord()` needed an edit per indexer (3 lines → 1 line each).
+  - Added `SearchDocumentInput::withAdditionalField()` (immutable, matches the
+        `withField()` pattern already used by `MeilisearchDocument`/`Chunk`)
+        so `sendDocument()` can merge in `languageCode` without exposing
+        `SearchDocumentInput`'s constructor shape to every indexer.
+  - Removed a pre-existing dead import (`use ApacheSolrForTypo3\Solr\...
+        \Document;`, never referenced) from the 7 indexers that had it, while
+        already touching those exact files for the real change.
+- [x] Updated all ten indexers (`NewsIndexer`, `FaqIndexer`, `GalleryIndexer`,
       `JobsIndexer`, `LocationIndexer`, `MemberIndexer`, `TeamMemberIndexer`,
       `TestimonialsIndexer`, `TimelineIndexer`, `EventIndexer`) across their
-      own extensions accordingly; add a compatibility test per indexer.
-- [ ] Generalize `SearchResultFormatterInterface::formatResult()` off Solr's
-      `_s`/`_t` field-naming convention, retiring `MeilisearchBackend::
-      toSolrShapedArray()`'s shim once every formatter reads backend-neutral
-      field names instead.
-- [ ] Re-confirm the "one class implements both interfaces" DI-tag convention
-      still holds once indexers stop being Solr-specific.
+      own extensions, plus `mai_search`'s own `PageIndexer`. Added a
+      `removeRecord()` compatibility test to every one of the ten sibling
+      extensions' test suites (a gap that existed before this phase — none of
+      them tested `removeRecord()` at all, since doing so previously required
+      mocking `Domain\Solr\ConnectionFactory` through an untyped property with
+      no injection point in the test; routing through `BackendRegistry` made
+      this straightforward to test for the first time). Also added
+      `AbstractIndexerTest` (didn't exist before) and extended
+      `PageIndexerTest` with `removeRecord()` coverage.
+  - **Validation note:** `mai_search` plus 6 of the 10 sibling extensions
+        (`events`, `jobs`, `news`, `member`, `team`, plus `mai_search` itself)
+        were validated with real `phpstan`/`phpunit` runs, all green. The other
+        4 (`faq`, `gallery`, `timeline`, `locations`) have never had their own
+        isolated `vendor/` installed and hit the exact same pre-existing
+        `maispace/mai-turbo` repository gap documented in Phase 1/2b's tooling
+        notes when a standalone `composer install` was attempted — unrelated
+        to this change, not fixed here. Validated those four with `php -l`
+        (syntax-clean) and a direct diff comparison confirming the edit is
+        byte-for-byte the same mechanical pattern already proven correct in
+        the other six. Flagging this honestly rather than claiming full
+        validation across all ten.
+- [ ] **Not done, deliberately deferred:** generalizing
+      `SearchResultFormatterInterface::formatResult()` off Solr's `_s`/`_t`
+      field-naming convention, which would retire `MeilisearchBackend::
+      toSolrShapedArray()`'s shim. This is the *read* path — a separate,
+      equally cross-package concern (touches the same ten extensions' 
+      formatters) from the *write* path fixed above. The write path was the
+      functionally critical piece (nothing could reach Meilisearch at all
+      before this phase); the read-path shim already works correctly today,
+      so this remains a code-quality follow-up, not a blocker.
+- [x] Re-confirmed the "one class implements both interfaces" DI-tag
+      convention still holds — untouched by this phase, since
+      `SearchIndexerInterface`'s method signatures never changed.
 
 ### Phase 2d — Environment provisioning tooling (out-of-band, user-requested) — ✅ done
 

@@ -27,4 +27,19 @@ readonly class SearchDocumentInput
         public array $rootline = [],
         public array $additionalFields = [],
     ) {}
+
+    public function withAdditionalField(string $key, mixed $value): self
+    {
+        return new self(
+            type: $this->type,
+            uid: $this->uid,
+            title: $this->title,
+            content: $this->content,
+            url: $this->url,
+            crdate: $this->crdate,
+            boost: $this->boost,
+            rootline: $this->rootline,
+            additionalFields: [...$this->additionalFields, $key => $value],
+        );
+    }
 }

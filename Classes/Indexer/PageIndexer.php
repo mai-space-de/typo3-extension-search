@@ -80,9 +80,7 @@ class PageIndexer extends AbstractIndexer implements SearchResultFormatterInterf
             return;
         }
 
-        $connection = $this->connectionFactory->getConnection();
-        $connection->deleteByQuery('id:' . $this->getType() . '-' . $uid);
-        $connection->commit(false, false);
+        $this->removeDocument($uid);
     }
 
     protected function buildContent(object $record, string $pageContentText = ''): string

@@ -56,4 +56,44 @@ class SearchDocumentInputTest extends TestCase
         self::assertSame([], $document->rootline);
         self::assertSame([], $document->additionalFields);
     }
+
+    #[Test]
+    public function withAdditionalFieldReturnsNewInstanceWithMergedField(): void
+    {
+        $original = new SearchDocumentInput(
+            type: 'news',
+            uid: 42,
+            title: 'Test Title',
+            content: 'Test content body',
+            url: '/news/test-title',
+            crdate: new \DateTimeImmutable('2026-05-23'),
+            boost: 1.0,
+            additionalFields: ['author_s' => 'Jane Doe'],
+        );
+
+        $withLanguage = $original->withAdditionalField('languageCode', 'de');
+
+        self::assertNotSame($original, $withLanguage);
+        self::assertSame(['author_s' => 'Jane Doe'], $original->additionalFields);
+        self::assertSame(['author_s' => 'Jane Doe', 'languageCode' => 'de'], $withLanguage->additionalFields);
+    }
+
+    #[Test]
+    public function withAdditionalFieldOverwritesExistingKey(): void
+    {
+        $original = new SearchDocumentInput(
+            type: 'news',
+            uid: 42,
+            title: 'Test Title',
+            content: 'Test content body',
+            url: '/news/test-title',
+            crdate: new \DateTimeImmutable('2026-05-23'),
+            boost: 1.0,
+            additionalFields: ['languageCode' => 'en'],
+        );
+
+        $updated = $original->withAdditionalField('languageCode', 'de');
+
+        self::assertSame(['languageCode' => 'de'], $updated->additionalFields);
+    }
 }
