@@ -33,8 +33,41 @@ services:
     tags:
       - name: 'maispace.search.backend'
 
-  Maispace\MaiSearch\Domain\Service\VectorEmbeddingInterface:
-    class: 'Maispace\MaiSearch\Service\VectorEmbeddingAdapter'
+  Maispace\MaiSearch\Service\ProviderRegistry:
+    public: true
+
+  # Providers are built from Extension Configuration via ProviderFactory rather
+  # than autowired directly, so their constructor args (API keys, base URLs,
+  # models) stay out of the DI graph.
+  Maispace\MaiSearch\Provider\Embedding\OpenAiEmbeddingProvider:
+    factory: ['@Maispace\MaiSearch\Service\ProviderFactory', 'createOpenAiEmbeddingProvider']
+    tags:
+      - name: 'maispace.search.embedding_provider'
+
+  Maispace\MaiSearch\Provider\Embedding\OllamaEmbeddingProvider:
+    factory: ['@Maispace\MaiSearch\Service\ProviderFactory', 'createOllamaEmbeddingProvider']
+    tags:
+      - name: 'maispace.search.embedding_provider'
+
+  Maispace\MaiSearch\Provider\Embedding\CustomEmbeddingProvider:
+    factory: ['@Maispace\MaiSearch\Service\ProviderFactory', 'createCustomEmbeddingProvider']
+    tags:
+      - name: 'maispace.search.embedding_provider'
+
+  Maispace\MaiSearch\Provider\Chat\OpenAiChatProvider:
+    factory: ['@Maispace\MaiSearch\Service\ProviderFactory', 'createOpenAiChatProvider']
+    tags:
+      - name: 'maispace.search.chat_provider'
+
+  Maispace\MaiSearch\Provider\Chat\OllamaChatProvider:
+    factory: ['@Maispace\MaiSearch\Service\ProviderFactory', 'createOllamaChatProvider']
+    tags:
+      - name: 'maispace.search.chat_provider'
+
+  Maispace\MaiSearch\Provider\Chat\CustomChatProvider:
+    factory: ['@Maispace\MaiSearch\Service\ProviderFactory', 'createCustomChatProvider']
+    tags:
+      - name: 'maispace.search.chat_provider'
 
   Maispace\MaiSearch\Indexer\PageIndexer:
     tags:

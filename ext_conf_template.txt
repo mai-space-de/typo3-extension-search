@@ -15,3 +15,36 @@ solr.core = core_en
 
 # cat=solr/enable/50; type=options[http=http,https=https]; label=Solr scheme
 solr.scheme = http
+
+# cat=providers/enable/10; type=options[OpenAI=openai,Ollama=ollama,Custom=custom]; label=Active embedding provider (used for hybrid KNN re-rank and, once wired, chunk vectors)
+embeddingProvider = openai
+
+# cat=providers/enable/20; type=options[OpenAI=openai,Ollama=ollama,Custom=custom]; label=Active chat provider (used for RAG answer synthesis)
+chatProvider = openai
+
+# cat=providers/openai/10; type=string; label=OpenAI API key
+openai.apiKey =
+
+# cat=providers/openai/20; type=string; label=OpenAI embedding model
+openai.embeddingModel = text-embedding-3-small
+
+# cat=providers/openai/30; type=string; label=OpenAI chat model
+openai.chatModel = gpt-4o-mini
+
+# cat=providers/ollama/10; type=string; label=Ollama base URL
+ollama.baseUrl = http://localhost:11434
+
+# cat=providers/ollama/20; type=string; label=Ollama embedding model
+ollama.embeddingModel = nomic-embed-text
+
+# cat=providers/ollama/30; type=string; label=Ollama chat model
+ollama.chatModel = llama3.1
+
+# cat=providers/custom/10; type=string; label=Custom embedding endpoint URL
+custom.embeddingUrl =
+
+# cat=providers/custom/20; type=string; label=Custom chat endpoint URL (OpenAI-compatible chat completions)
+custom.chatUrl =
+
+# cat=providers/custom/30; type=string; label=Custom provider API key
+custom.apiKey =

@@ -9,14 +9,15 @@ use Maispace\MaiSearch\Domain\Dto\SearchResult;
 use Maispace\MaiSearch\Domain\Model\BackendCapabilities;
 use Maispace\MaiSearch\Domain\Model\SearchDocumentInput;
 use Maispace\MaiSearch\Domain\Model\SearchRequest;
+use Maispace\MaiSearch\Domain\Service\EmbeddingProviderInterface;
 use Maispace\MaiSearch\Domain\Service\IndexManagementService;
 use Maispace\MaiSearch\Domain\Service\SearchResultFormatterInterface;
-use Maispace\MaiSearch\Domain\Service\VectorEmbeddingInterface;
 use Maispace\MaiSearch\Domain\Solr\ConnectionFactory;
 use Maispace\MaiSearch\Domain\Solr\SchemaManager;
 use Maispace\MaiSearch\Domain\Solr\SearchQuery;
 use Maispace\MaiSearch\Domain\Solr\SearchResponse;
 use Maispace\MaiSearch\Domain\Solr\SolrClientInterface;
+use Maispace\MaiSearch\Service\ProviderRegistry;
 use Maispace\MaiSearch\Service\ResultFormatterRegistry;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -27,6 +28,7 @@ class SolrBackendTest extends TestCase
     private ConnectionFactory $connectionFactory;
     private ResultFormatterRegistry $resultFormatterRegistry;
     private IndexManagementService $indexManagementService;
+    private ProviderRegistry $providerRegistry;
     private SolrBackend $backend;
 
     protected function setUp(): void
@@ -34,10 +36,12 @@ class SolrBackendTest extends TestCase
         $this->connectionFactory = $this->createMock(ConnectionFactory::class);
         $this->resultFormatterRegistry = $this->createMock(ResultFormatterRegistry::class);
         $this->indexManagementService = $this->createMock(IndexManagementService::class);
+        $this->providerRegistry = $this->createMock(ProviderRegistry::class);
         $this->backend = new SolrBackend(
             $this->connectionFactory,
             $this->resultFormatterRegistry,
             $this->indexManagementService,
+            $this->providerRegistry,
         );
     }
 
@@ -250,15 +254,9 @@ class SolrBackendTest extends TestCase
     #[Test]
     public function searchDoesNotAddRqParamWhenRagDisabled(): void
     {
-        $embeddingService = $this->createMock(VectorEmbeddingInterface::class);
-        $embeddingService->expects(self::never())->method('embedText');
-
-        $this->backend = new SolrBackend(
-            $this->connectionFactory,
-            $this->resultFormatterRegistry,
-            $this->indexManagementService,
-            $embeddingService,
-        );
+        $embeddingProvider = $this->createMock(EmbeddingProviderInterface::class);
+        $embeddingProvider->expects(self::never())->method('embed');
+        $this->providerRegistry->method('getActiveEmbeddingProvider')->willReturn($embeddingProvider);
 
         $client = $this->createMock(SolrClientInterface::class);
         $client
@@ -275,15 +273,9 @@ class SolrBackendTest extends TestCase
     #[Test]
     public function searchAddsRqParamWhenRagEnabled(): void
     {
-        $embeddingService = $this->createMock(VectorEmbeddingInterface::class);
-        $embeddingService->method('embedText')->willReturn([0.1, 0.2, 0.3]);
-
-        $this->backend = new SolrBackend(
-            $this->connectionFactory,
-            $this->resultFormatterRegistry,
-            $this->indexManagementService,
-            $embeddingService,
-        );
+        $embeddingProvider = $this->createMock(EmbeddingProviderInterface::class);
+        $embeddingProvider->method('embed')->willReturn([0.1, 0.2, 0.3]);
+        $this->providerRegistry->method('getActiveEmbeddingProvider')->willReturn($embeddingProvider);
 
         $client = $this->createMock(SolrClientInterface::class);
         $client

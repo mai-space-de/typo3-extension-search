@@ -10,6 +10,7 @@ use Maispace\MaiSearch\Domain\Solr\Document;
 use Maispace\MaiSearch\Domain\Solr\SchemaManager;
 use Maispace\MaiSearch\Domain\Solr\SearchQuery;
 use Maispace\MaiSearch\Service\IndexerRegistry;
+use Maispace\MaiSearch\Service\ProviderRegistry;
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -20,7 +21,7 @@ class IndexManagementService implements SingletonInterface
 
     public function __construct(
         private readonly ConnectionFactory $connectionFactory,
-        private readonly ?VectorEmbeddingInterface $vectorEmbeddingService = null,
+        private readonly ProviderRegistry $providerRegistry,
         private readonly ?IndexerRegistry $indexerRegistry = null,
     ) {}
 
@@ -222,10 +223,6 @@ class IndexManagementService implements SingletonInterface
 
     private function addEmbeddingToDocument(Document $document): void
     {
-        if ($this->vectorEmbeddingService === null) {
-            return;
-        }
-
         $fields = $document->getFields();
         $content = $fields['content_t'] ?? '';
         $content = is_string($content) ? trim($content) : '';
@@ -234,7 +231,8 @@ class IndexManagementService implements SingletonInterface
             return;
         }
 
-        $maxTokens = $this->vectorEmbeddingService->getMaxInputTokens();
+        $embeddingProvider = $this->providerRegistry->getActiveEmbeddingProvider();
+        $maxTokens = $embeddingProvider->getMaxInputTokens();
         $estimatedTokens = (int) ceil(mb_strlen($content) * self::TOKENS_PER_CHAR);
 
         if ($estimatedTokens > $maxTokens) {
@@ -243,7 +241,7 @@ class IndexManagementService implements SingletonInterface
         }
 
         try {
-            $vector = $this->vectorEmbeddingService->embedText($content);
+            $vector = $embeddingProvider->embed($content);
 
             if ($vector !== []) {
                 $document->setField(SchemaManager::VECTOR_FIELD_NAME, $vector);

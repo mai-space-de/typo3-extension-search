@@ -7,6 +7,7 @@ namespace Maispace\MaiSearch\Tests\Unit\Controller;
 use Maispace\MaiSearch\Controller\SearchController;
 use Maispace\MaiSearch\Domain\Service\SearchService;
 use Maispace\MaiSearch\Domain\Service\SearchSynthesisService;
+use Maispace\MaiSearch\Service\ProviderRegistry;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
@@ -21,8 +22,7 @@ final class SearchControllerTest extends TestCase
     {
         $this->searchService = $this->createMock(SearchService::class);
         $this->synthesisService = new SearchSynthesisService(
-            $this->createMock(\TYPO3\CMS\Core\Http\RequestFactory::class),
-            '',
+            $this->createMock(ProviderRegistry::class),
         );
     }
 

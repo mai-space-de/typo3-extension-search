@@ -11,12 +11,12 @@ use Maispace\MaiSearch\Domain\Model\SearchDocumentInput;
 use Maispace\MaiSearch\Domain\Model\SearchRequest;
 use Maispace\MaiSearch\Domain\Service\IndexManagementService;
 use Maispace\MaiSearch\Domain\Service\SearchBackendInterface;
-use Maispace\MaiSearch\Domain\Service\VectorEmbeddingInterface;
 use Maispace\MaiSearch\Domain\Solr\ConnectionFactory;
 use Maispace\MaiSearch\Domain\Solr\Document;
 use Maispace\MaiSearch\Domain\Solr\SchemaManager;
 use Maispace\MaiSearch\Domain\Solr\SearchQuery;
 use Maispace\MaiSearch\Domain\Solr\SearchResponse;
+use Maispace\MaiSearch\Service\ProviderRegistry;
 use Maispace\MaiSearch\Service\ResultFormatterRegistry;
 
 /**
@@ -40,7 +40,7 @@ final class SolrBackend implements SearchBackendInterface
         private readonly ConnectionFactory $connectionFactory,
         private readonly ResultFormatterRegistry $resultFormatterRegistry,
         private readonly IndexManagementService $indexManagementService,
-        private readonly ?VectorEmbeddingInterface $embeddingService = null,
+        private readonly ProviderRegistry $providerRegistry,
     ) {}
 
     public function getIdentifier(): string
@@ -171,12 +171,12 @@ final class SolrBackend implements SearchBackendInterface
         string $query,
         bool $ragEnabled,
     ): void {
-        if (!$ragEnabled || $this->embeddingService === null) {
+        if (!$ragEnabled) {
             return;
         }
 
         try {
-            $vector = $this->embeddingService->embedText($query);
+            $vector = $this->providerRegistry->getActiveEmbeddingProvider()->embed($query);
         } catch (\RuntimeException) {
             return;
         }

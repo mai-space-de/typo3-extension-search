@@ -254,9 +254,98 @@ bridging the namespace from the monorepo root's `vendor/` via
 in Phase 2 for `meilisearch/meilisearch-php` if this package's isolated vendor
 doesn't already have it.
 
-### Phase 2 — Absorb Meilisearch as a first-class backend (P0)
+### Phase 2a — Self-sufficient AI provider layer (P0) — ✅ done
 
-This is the phase that actually ends the duplication between the two extensions.
+Resolves the three-way provider reconciliation flagged at the end of Phase 1.
+**Decided:** `mai_search` becomes fully self-sufficient for AI — no more
+`mai_translate` dependency for search/RAG at all.
+
+- [x] Ported `ProviderRegistry`/`ProviderFactory` + `Provider/Chat/*`
+      (`AbstractChatProvider`, `OpenAiChatProvider`, `OllamaChatProvider`,
+      `CustomChatProvider`) + `Provider/Embedding/*` (`AbstractEmbeddingProvider`,
+      `OpenAiEmbeddingProvider`, `OllamaEmbeddingProvider`, `CustomEmbeddingProvider`)
+      + `Domain/Model/{ChatMessage,ChatRequest,ChatResponse}` +
+      `Domain/Service/{ChatProviderInterface,StreamingChatProviderInterface,
+      EmbeddingProviderInterface}` + `Support/ExtractsResponsePath` from
+      `mai_meilisearch`, unchanged in behavior.
+  - **Deliberate deviation from the source:** dropped
+        `EmbeddingProviderInterface::toMeilisearchEmbedderConfig()` — a
+        Meilisearch-specific concern that has no place on an interface
+        `SolrBackend` also implements against. Added `getMaxInputTokens(): int`
+        instead, replacing the same method from the removed
+        `VectorEmbeddingInterface` (`IndexManagementService` needs it to
+        truncate content before requesting an embedding).
+  - **Bugfix found while porting:** `ExtractsResponsePath::extractByPath()` was
+        `private` in the source. `CustomChatProvider`/`CustomEmbeddingProvider`
+        call it directly while the trait is `use`d by their *parent*
+        (`AbstractChatProvider`/`AbstractEmbeddingProvider`) — PHP scopes
+        trait-private methods to the class that uses the trait, not its
+        subclasses, so this would have been a fatal error the first time a
+        custom provider actually ran. Changed to `protected`. Neither source
+        extension has a test covering this path, so it went uncaught there too.
+  - **Convention fix:** `ProviderRegistry`/`ProviderFactory` were ported as
+        `final class` (matching the source verbatim), which made them
+        impossible to `createMock()` in consumer tests — breaks with this
+        repo's own established pattern (`BackendRegistry`, `IndexerRegistry`,
+        `ResultFormatterRegistry`, `SearchService`, `IndexManagementService` are
+        all deliberately non-final for exactly this reason). Removed `final`
+        from both.
+- [x] Removed `Domain/Service/VectorEmbeddingInterface.php`,
+      `Service/VectorEmbeddingAdapter.php`, and their Services.yaml binding —
+      the `mai_translate` bridge is gone.
+- [x] Rewired `SolrBackend` and `IndexManagementService`: `?VectorEmbeddingInterface`
+      → required `ProviderRegistry`. Both simplified (no more null-check branch —
+      a `ProviderRegistry` with a real, always-registered OpenAI/Ollama/Custom
+      embedding provider is always available now, unlike the old optional
+      third-party bridge).
+- [x] Rewired `SearchSynthesisService`: hardcoded direct OpenAI HTTP call →
+      `ProviderRegistry::getActiveChatProvider()->complete()`. **Retrieval
+      design intentionally unchanged** — still reuses the top `SearchResult[]`
+      from the primary query as context, not `mai_meilisearch`'s separate
+      per-type chunk-index retrieval. Upgrading to that more precise design is
+      real, separate architecture work — deferred to Phase 7, not bundled in
+      here as a silent scope increase.
+  - Minor accepted behavior change: the old code pre-flight-checked for an
+        empty API key before making any HTTP call. The new design has no
+        single "the api key" to check across three possible providers/two
+        concerns (chat vs. embedding) — an unconfigured provider now degrades
+        via its own graceful handling (empty vector / empty-ish answer from a
+        failed HTTP round-trip) rather than skipping the network call
+        entirely. Matches `mai_meilisearch`'s own reference behavior.
+- [x] **Not ported:** `Chunker`/`AbstractChunker`/`FixedSizeChunker`/`Chunk`/
+      `ChunkingOptions`. Reason: nothing in `mai_search` calls its existing
+      `ContentChunkerService` either — it's dead, unwired code today. Porting a
+      fancier unused chunker in its place would be speculative work with no
+      current caller, contradicting the project's own "don't build for
+      hypothetical future requirements" rule. Real chunking infrastructure
+      belongs with the chunk-index RAG upgrade in Phase 7, where it will
+      actually be wired to something.
+- [x] Added `embeddingProvider`/`chatProvider` + `openai.*`/`ollama.*`/`custom.*`
+      sections to `ext_conf_template.txt`, mirroring `mai_meilisearch`'s template.
+- [x] Tests: `ProviderRegistryTest`, `ProviderFactoryTest`, one test class per
+      concrete provider (6), `ExtractsResponsePathTest`, plus updated
+      `SolrBackendTest`/`IndexManagementServiceTest`/`SearchSynthesisServiceTest`/
+      `SearchControllerTest`. 220 tests / 562 assertions total, PHPStan level 5
+      clean (including a stale `phpstan-baseline.neon` entry removed — it
+      referenced the now-deleted `VectorEmbeddingAdapter.php`), PHP-CS-Fixer clean.
+
+### Phase 2b — MeilisearchBackend + indexer contract merge (P0, paused for check-in)
+
+**Not started.** This is a materially different scope of change than 2a: it
+touches `AbstractIndexer`, the shared base class **ten other `mai_*`
+extensions' concrete indexers** (`NewsIndexer`, `FaqIndexer`, `GalleryIndexer`,
+`JobsIndexer`, `LocationIndexer`, `MemberIndexer`, `TeamMemberIndexer`,
+`TestimonialsIndexer`, `TimelineIndexer`, `EventIndexer`) depend on — a
+cross-package blast radius Phase 2a deliberately avoided. Confirmed by reading
+`NewsIndexer`: it already fully implements `indexAll`/`indexRecord`/
+`removeRecord`/`supports`/`getType` itself and only borrows `AbstractIndexer`'s
+`createDocument()`/`sendDocument()` helpers — so the `SearchIndexerInterface`
+method signatures don't strictly need to change for backward compatibility,
+but the "reconcile the indexer contract" checklist item below still touches
+shared, widely-depended-on code and deserves its own go/no-go rather than
+riding on Phase 2a's momentum.
+
+Outstanding work, unchanged from the original plan:
 
 - [ ] Port `Domain/Client/{MeilisearchClient,ConnectionFactory}.php` from
       `mai_meilisearch` into `mai_search` as `Backend/Meilisearch/*`. Apply the
@@ -268,14 +357,6 @@ This is the phase that actually ends the duplication between the two extensions.
         index per site/language — the current `IndexNameResolver` design should be
         revisited here, but only after confirming with the user (see Phase 7 note;
         this is a real behavior tradeoff, not a pure refactor).
-- [ ] Port `Chunker`/`AbstractChunker`/`FixedSizeChunker` unchanged — adopt as
-      `mai_search`'s canonical chunker, replacing/absorbing the narrower
-      `ContentChunkerService` already in `mai_search`.
-- [ ] Port `ProviderRegistry`/`ProviderFactory` + `Chat/*` + `Embedding/*`
-      providers (OpenAI/Ollama/Custom) — replaces `mai_search`'s OpenAI-only
-      `VectorEmbeddingAdapter` with the strictly more flexible abstraction.
-- [ ] Port `SearchSynthesisService` (RAG answer synthesis) onto the ported
-      provider abstraction.
 - [ ] Implement `MeilisearchBackend implements SearchBackendInterface` wrapping
       the ported client — `getCapabilities()` reports `supportsVectorSearch = true`.
 - [ ] Reconcile the indexer contract: `mai_meilisearch`'s `IndexerInterface`

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Maispace\MaiSearch\Tests\Unit\Domain\Service;
 
+use Maispace\MaiSearch\Domain\Service\EmbeddingProviderInterface;
 use Maispace\MaiSearch\Domain\Service\IndexManagementService;
 use Maispace\MaiSearch\Domain\Service\SearchIndexerInterface;
-use Maispace\MaiSearch\Domain\Service\VectorEmbeddingInterface;
 use Maispace\MaiSearch\Domain\Solr\ConnectionFactory;
 use Maispace\MaiSearch\Domain\Solr\Document;
 use Maispace\MaiSearch\Domain\Solr\SchemaManager;
@@ -14,6 +14,7 @@ use Maispace\MaiSearch\Domain\Solr\SearchQuery;
 use Maispace\MaiSearch\Domain\Solr\SearchResponse;
 use Maispace\MaiSearch\Domain\Solr\SolrClientInterface;
 use Maispace\MaiSearch\Service\IndexerRegistry;
+use Maispace\MaiSearch\Service\ProviderRegistry;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -25,17 +26,26 @@ final class IndexManagementServiceTest extends TestCase
 
     private SolrClientInterface&MockObject $solrClient;
 
+    private ProviderRegistry&MockObject $providerRegistry;
+
+    private EmbeddingProviderInterface&MockObject $embeddingProvider;
+
     private IndexManagementService $service;
 
     protected function setUp(): void
     {
         $this->connectionFactory = $this->createMock(ConnectionFactory::class);
         $this->solrClient = $this->createMock(SolrClientInterface::class);
+        $this->providerRegistry = $this->createMock(ProviderRegistry::class);
+        $this->embeddingProvider = $this->createMock(EmbeddingProviderInterface::class);
+        $this->embeddingProvider->method('getMaxInputTokens')->willReturn(8191);
+        $this->embeddingProvider->method('embed')->willReturn([]);
+        $this->providerRegistry->method('getActiveEmbeddingProvider')->willReturn($this->embeddingProvider);
 
         $this->connectionFactory->method('getConnection')->willReturn($this->solrClient);
         $this->connectionFactory->method('getConnectionForLanguageCode')->willReturn($this->solrClient);
 
-        $this->service = new IndexManagementService($this->connectionFactory);
+        $this->service = new IndexManagementService($this->connectionFactory, $this->providerRegistry);
     }
 
     private function createDocumentWithContent(string $content): Document
@@ -60,7 +70,7 @@ final class IndexManagementServiceTest extends TestCase
     }
 
     #[Test]
-    public function addDocumentDoesNotAddVectorFieldWhenNoEmbeddingService(): void
+    public function addDocumentDoesNotAddVectorFieldWhenActiveProviderReturnsNoVector(): void
     {
         $document = $this->createDocumentWithContent('Test content');
 
@@ -86,11 +96,14 @@ final class IndexManagementServiceTest extends TestCase
     #[Test]
     public function addDocumentWithEmbeddingAddsVectorField(): void
     {
-        $embedding = $this->createMock(VectorEmbeddingInterface::class);
-        $embedding->method('getMaxInputTokens')->willReturn(8191);
-        $embedding->method('embedText')->willReturn([0.001, 0.002, 0.003]);
+        $embeddingProvider = $this->createMock(EmbeddingProviderInterface::class);
+        $embeddingProvider->method('getMaxInputTokens')->willReturn(8191);
+        $embeddingProvider->method('embed')->willReturn([0.001, 0.002, 0.003]);
 
-        $service = new IndexManagementService($this->connectionFactory, $embedding);
+        $providerRegistry = $this->createMock(ProviderRegistry::class);
+        $providerRegistry->method('getActiveEmbeddingProvider')->willReturn($embeddingProvider);
+
+        $service = new IndexManagementService($this->connectionFactory, $providerRegistry);
         $document = $this->createDocumentWithContent('Test content');
 
         $service->addDocument($document);
@@ -185,7 +198,7 @@ final class IndexManagementServiceTest extends TestCase
             'en' => 'core_en',
         ]);
 
-        $service = new IndexManagementService($this->connectionFactory, null, $registry);
+        $service = new IndexManagementService($this->connectionFactory, $this->providerRegistry, $registry);
         $service->reindexAll();
     }
 }
