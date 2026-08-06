@@ -20,6 +20,19 @@ services:
     tags:
       - name: 'maispace.search.formatter_registry'
 
+  Maispace\MaiSearch\Service\BackendRegistry:
+    public: true
+    tags:
+      - name: 'maispace.search.backend_registry'
+
+  Maispace\MaiSearch\Backend\Solr\SolrBackend:
+    tags:
+      - name: 'maispace.search.backend'
+
+  Maispace\MaiSearch\Backend\IndexedSearch\IndexedSearchBackend:
+    tags:
+      - name: 'maispace.search.backend'
+
   Maispace\MaiSearch\Domain\Service\VectorEmbeddingInterface:
     class: 'Maispace\MaiSearch\Service\VectorEmbeddingAdapter'
 

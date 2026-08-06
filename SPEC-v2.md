@@ -82,8 +82,8 @@ Classes/
 │       ├── ChatProviderInterface.php              # ported
 │       └── SearchSynthesisService.php             # ported (RAG)
 ├── Backend/
-│   ├── IndexedSearch/IndexedSearchBackend.php     # NEW
-│   ├── Solr/SolrBackend.php + ConnectionFactory.php + Document.php
+│   ├── IndexedSearch/IndexedSearchBackend.php     # DONE (Phase 1) — search only, writes are logged no-ops
+│   ├── Solr/SolrBackend.php                       # DONE (Phase 1) — Domain/Solr/{ConnectionFactory,Document,...} stay put
 │   └── Meilisearch/MeilisearchBackend.php + Client/* + ConnectionFactory.php  # ported
 ├── Indexer/
 │   ├── AbstractIndexer.php                        # TCA enable-columns trait baked in
@@ -179,28 +179,80 @@ registration of the new interface, existing Solr code path untouched.
   and whatever `mai_search` needs for its own RAG synthesis. Revisit explicitly at
   the start of Phase 2 — don't assume the two-way merge originally scoped.
 
-### Phase 1 — Backend abstraction + `IndexedSearchBackend` (P0)
+### Phase 1 — Backend abstraction + `IndexedSearchBackend` (P0) — ✅ done
 
 Delivers the zero-infrastructure default backend and proves the abstraction holds.
 
-- [ ] Implement `BackendRegistry` (DI tag `maispace.search.backend`, resolves
-      active backend from `ext_conf_template.txt` setting).
-- [ ] Add `typo3/cms-indexed-search` to `composer.json` requires.
-- [ ] Implement `IndexedSearchBackend`:
-  - `search()` wraps `IndexSearchRepository`, maps its `sortOrder` aggregate to a
-    documented **non-comparable** `score` (never mixed with Solr/Meilisearch scores
-    in the same result set).
-  - `indexRecord()`/`removeRecord()` are explicitly unsupported
-    (`supportsRealtimeIndexing = false`); calling them is a no-op with a logged
-    warning, not a silent failure.
-  - Full "reindex" delegates to a page-tree crawl trigger (documented dependency:
-    either `tomasnorre/crawler` or a minimal internal FE sub-request crawler —
-    decide in this phase, don't leave it implicit).
-- [ ] Refactor `SearchService`, `IndexManagementService`, `SearchController` to go
-      through `BackendRegistry::getActive()` instead of hardcoding Solr.
-- [ ] Unit tests per `BackendCapabilities` contract — assert `IndexedSearchBackend`
-      correctly reports its reduced capabilities and that `SearchService` respects
-      them (e.g., never renders a facet UI against a backend that doesn't support one).
+- [x] Implemented `BackendRegistry` (`Classes/Service/BackendRegistry.php`, DI tag
+      `maispace.search.backend`, collected via `BackendRegistryCompilerPass`).
+      Resolves the active backend from the `activeBackend` `ExtensionConfiguration`
+      setting added in Phase 0; falls back to `solr` when the configured
+      identifier isn't registered (e.g. `activeBackend = meilisearch` before
+      Phase 2 exists) or when reading the configuration throws.
+- [x] Added `typo3/cms-indexed-search` to `composer.json` requires.
+- [x] Implemented `IndexedSearchBackend` (`Classes/Backend/IndexedSearch/`):
+  - `search()` wraps core's `IndexSearchRepository` directly (constructor is
+    plain DI, no TSFE dependency) — reuses core's own `IndexedSearchUtility::
+    getExplodedSearchString()` + `Lexer::split2Words()` for word-splitting
+    (both are usable outside core's own `SearchController`, whose equivalent
+    methods are `protected`) and `SiteFinder`/`Site::getRouter()->generateUri()`
+    for URL building (works without a current PSR-7 request, so it's usable
+    from CLI/scheduler contexts too, not just live frontend requests).
+    `score` is `1 / result_number`, explicitly documented as **not comparable**
+    across backends (`hasComparableRelevanceScore = false`).
+  - `indexDocument()`/`removeDocument()` are unsupported: log a warning via
+    `LoggerAwareInterface` and return, never throw — matches this repo's own
+    established precedent (commit `8a720b0`: "Do not fail DataHandler saves on
+    Solr errors"). `SearchBackendInterface`'s docblock was corrected to require
+    this behavior instead of the `@throws` originally sketched in Phase 0.
+  - **Descoped from this phase, moved to Phase 3:** the "trigger a full
+    reindex/crawl" mechanism you chose (minimal internal sub-request crawler,
+    no `tomasnorre/crawler` dependency). `SearchBackendInterface` has no
+    `reindexAll()`-shaped method — batch orchestration lives entirely in
+    `IndexManagementService::reindexAll()`, which iterates `IndexerRegistry`
+    indexers and calls `indexAll(IndexingContext)` on each. That model doesn't
+    fit "crawl the page tree" at all, and Phase 3 redesigns reindex
+    orchestration anyway (queue/worker split) — building throwaway crawler code
+    against today's orchestration shape would just be rewritten. For now,
+    `IndexedSearchBackend` searches whatever core's own page-render-time
+    indexing has already put in the index; the internal crawler is a Phase 3
+    deliverable, not deferred indefinitely.
+- [x] Refactored `SearchService` into a thin facade: builds a `SearchRequest`
+      and delegates to `BackendRegistry::getActive()->search()`. Its Solr query-
+      building logic (KNN hybrid re-rank, type-filter normalization, result
+      mapping) moved verbatim into `SolrBackend`.
+  - **Scope correction from the original Phase 1 text:** `IndexManagementService`
+    and `SearchController` turned out **not** to need changes. `SearchController`
+    was already fully decoupled from Solr — it only ever talked to `SearchService`,
+    so generalizing `SearchService` was sufficient. `IndexManagementService`
+    stays Solr-specific internally for now: its write API is typed against
+    `Domain\Solr\Document`, and every indexer (`PageIndexer`, `NewsIndexer`, …)
+    still builds that type directly via `AbstractIndexer::createDocument()`.
+    Retyping that write path to the backend-agnostic `SearchDocumentInput` is
+    explicitly Phase 2 work ("unify indexer contract") — doing it here would
+    have meant touching every indexer ahead of schedule. `SolrBackend` does
+    fully implement `indexDocument()`/`removeDocument()` today (translating
+    `SearchDocumentInput` → `Domain\Solr\Document` internally, then delegating
+    to `IndexManagementService`), so the interface contract is real and tested
+    — nothing yet calls it from the live indexer write path, that wiring is
+    Phase 2/3's job once indexers stop building Solr `Document` objects directly.
+- [x] Unit tests: `BackendRegistryTest`, `SolrBackendTest` (migrated the Solr
+      query-building tests off the old `SearchServiceTest`), `IndexedSearchBackendTest`,
+      and a rewritten `SearchServiceTest` asserting the facade delegates correctly.
+      179 tests / 496 assertions total, PHPStan level 5 clean, PHP-CS-Fixer clean.
+
+**Tooling note for future phases:** this package's own isolated `vendor/`
+(used by `composer check:phpstan`/`test:unit` inside
+`packages/typo3-extension-search`) cannot run `composer update` standalone —
+its `composer.json` requires `maispace/mai-turbo` with no repository entry
+outside the monorepo root's `packages/*` path repository, a **pre-existing**
+gap unrelated to this refactor. Adding `typo3/cms-indexed-search` to
+`composer.json` was safe (plain manifest edit), but validating code that
+references its classes required a temporary, uncommitted bootstrap file
+bridging the namespace from the monorepo root's `vendor/` via
+`phpstan --autoload-file=` / `phpunit --bootstrap=`. Same trick will be needed
+in Phase 2 for `meilisearch/meilisearch-php` if this package's isolated vendor
+doesn't already have it.
 
 ### Phase 2 — Absorb Meilisearch as a first-class backend (P0)
 

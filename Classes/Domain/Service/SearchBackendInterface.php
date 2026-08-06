@@ -27,7 +27,10 @@ interface SearchBackendInterface
     public function search(SearchRequest $request): SearchResultPage;
 
     /**
-     * @throws \RuntimeException When getCapabilities()->supportsRealtimeIndexing is false
+     * When getCapabilities()->supportsRealtimeIndexing is false, implementations
+     * must log a warning and return rather than throw — a DataHandler save must
+     * never fail because the configured backend can't index in realtime (see
+     * the project's own precedent: "Do not fail DataHandler saves on Solr errors").
      */
     public function indexDocument(SearchDocumentInput $document): void;
 
