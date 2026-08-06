@@ -48,6 +48,14 @@
                 <source>Are you sure you want to clear the entire search index? This action cannot be undone.</source>
                 <target>Soll der gesamte Suchindex wirklich geleert werden? Diese Aktion kann nicht rückgängig gemacht werden.</target>
             </trans-unit>
+            <trans-unit id="index.provision.title">
+                <source>Create the Solr cores or Meilisearch indexes the active backend needs</source>
+                <target>Die vom aktiven Backend benötigten Solr-Cores oder Meilisearch-Indizes anlegen</target>
+            </trans-unit>
+            <trans-unit id="index.provision.button">
+                <source>Provision Infrastructure</source>
+                <target>Infrastruktur einrichten</target>
+            </trans-unit>
             <trans-unit id="index.inspect.title">
                 <source>Index Inspection</source>
                 <target>Indexprüfung</target>

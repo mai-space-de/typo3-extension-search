@@ -17,13 +17,16 @@ use TYPO3\CMS\Core\SingletonInterface;
  * 1536 dimensions / cosine similarity / HNSW — matches OpenAI text-embedding-3-small.
  * Call ensureVectorFieldExists() once per core before indexing starts.
  */
-final class SchemaManager implements SingletonInterface
+class SchemaManager implements SingletonInterface
 {
     public const VECTOR_FIELD_NAME = 'content_vector';
     public const VECTOR_DIMENSIONS = 1536;
     public const VECTOR_FIELD_TYPE_NAME = 'knn_vector_1536';
 
     private const SCHEMA_API_PATH = '/solr/%s/schema';
+    private const CORE_ADMIN_PATH = '/solr/admin/cores';
+    private const DEFAULT_CONFIG_SET = '_default';
+    private const DEFAULT_CORE = 'core_en';
 
     private ClientInterface $httpClient;
 
@@ -32,6 +35,37 @@ final class SchemaManager implements SingletonInterface
         ?ClientInterface $httpClient = null,
     ) {
         $this->httpClient = $httpClient ?? new Client();
+    }
+
+    /**
+     * Creates every core referenced by the configured language mapping (or the
+     * single default core when unconfigured) via Solr's CoreAdminHandler, using
+     * the `_default` configset every standard Solr install ships — no custom
+     * configset upload needed. Mai_search's own `_s`/`_t`/`_i`/`_dt` field naming
+     * convention is deliberately chosen to match `_default`'s built-in dynamic
+     * field patterns, so no further schema definition is required.
+     *
+     * Idempotent: existing cores are detected via CoreAdminHandler STATUS and
+     * left untouched.
+     *
+     * @return list<string> Core names that were newly created (empty if all already existed)
+     *
+     * @throws \RuntimeException When the CoreAdminHandler returns an unexpected error.
+     */
+    public function ensureCoresExist(): array
+    {
+        $coreMapping = $this->connectionFactory->getCoreMapping();
+        $cores = $coreMapping === [] ? [self::DEFAULT_CORE] : array_values($coreMapping);
+
+        $created = [];
+        foreach (array_unique($cores) as $core) {
+            if (!$this->coreExists($core)) {
+                $this->createCore($core);
+                $created[] = $core;
+            }
+        }
+
+        return $created;
     }
 
     /**
@@ -182,5 +216,79 @@ final class SchemaManager implements SingletonInterface
         }
 
         return 'en';
+    }
+
+    private function coreExists(string $core): bool
+    {
+        try {
+            $response = $this->httpClient->request('GET', $this->buildAdminUrl(), [
+                'query' => ['action' => 'STATUS', 'core' => $core, 'wt' => 'json'],
+            ]);
+
+            $body = json_decode((string) $response->getBody(), true);
+
+            return is_array($body) && array_key_exists('status', $body) && is_array($body['status'])
+                && array_key_exists($core, $body['status']);
+        } catch (GuzzleException $e) {
+            throw new \RuntimeException(
+                sprintf('Solr CoreAdminHandler STATUS request failed for core "%s": %s', $core, $e->getMessage()),
+                1748900100,
+                $e,
+            );
+        }
+    }
+
+    /**
+     * @throws \RuntimeException When core creation fails for a reason other than the core already existing.
+     */
+    private function createCore(string $core): void
+    {
+        try {
+            $response = $this->httpClient->request('GET', $this->buildAdminUrl(), [
+                'query' => [
+                    'action' => 'CREATE',
+                    'name' => $core,
+                    'configSet' => self::DEFAULT_CONFIG_SET,
+                    'wt' => 'json',
+                ],
+            ]);
+
+            $statusCode = $response->getStatusCode();
+
+            if ($statusCode >= 400) {
+                throw new \RuntimeException(
+                    sprintf(
+                        'Solr CoreAdminHandler CREATE returned HTTP %d for core "%s". Body: %s',
+                        $statusCode,
+                        $core,
+                        (string) $response->getBody(),
+                    ),
+                    1748900101,
+                );
+            }
+        } catch (GuzzleException $e) {
+            if ($this->isAlreadyExistsError($e)) {
+                return;
+            }
+
+            throw new \RuntimeException(
+                sprintf('Solr CoreAdminHandler CREATE request failed for core "%s": %s', $core, $e->getMessage()),
+                1748900102,
+                $e,
+            );
+        }
+    }
+
+    private function buildAdminUrl(): string
+    {
+        $endpoint = $this->connectionFactory->getConnection()->getEndpoint();
+
+        return sprintf(
+            '%s://%s:%d%s',
+            $endpoint->getScheme(),
+            $endpoint->getHost(),
+            $endpoint->getPort(),
+            self::CORE_ADMIN_PATH,
+        );
     }
 }

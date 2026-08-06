@@ -439,6 +439,65 @@ real, cross-package work, not a byproduct of the backend/provider work.
 - [ ] Re-confirm the "one class implements both interfaces" DI-tag convention
       still holds once indexers stop being Solr-specific.
 
+### Phase 2d — Environment provisioning tooling (out-of-band, user-requested) — ✅ done
+
+Not part of the original phase numbering — added directly in response to "it's
+always a pain to set up cores for each env," alongside adding Meilisearch to
+DDEV. Backend-aware: works no matter which `activeBackend` is configured.
+
+- [x] `.ddev/docker-compose.meilisearch.yaml` (root project) — Meilisearch
+      `v1.9` service, matching the SDK's floor version, reachable as
+      `meilisearch:7700` from the web container. `.ddev/config.yaml` gained
+      `MEILISEARCH_HOST`/`MEILISEARCH_API_KEY` env vars, read by
+      `Backend\Meilisearch\ConnectionFactory` (already had this env-var
+      precedence since Phase 2b — no code change needed, just DDEV wiring).
+  - **Debugged during verification** (`ddev restart` actually run, not just
+        written and assumed correct): the healthcheck's `wget
+        http://localhost:7700/health` failed with "connection refused" even
+        though Meilisearch was running fine — this Alpine image resolves
+        `localhost` to `::1` first and Meilisearch only binds `0.0.0.0`
+        (IPv4). Fixed by using the literal `127.0.0.1` in the healthcheck.
+        Confirmed working end-to-end: `ddev describe` shows the service
+        healthy, `curl` from inside the web container against
+        `http://meilisearch:7700/health` succeeds with the configured master key.
+- [x] `Domain\Solr\SchemaManager::ensureCoresExist()` — creates missing Solr
+      cores via CoreAdminHandler's `CREATE` action with `configSet=_default`
+      (every standard Solr install ships this configset — no custom configset
+      upload needed, since `mai_search`'s `_s`/`_t`/`_i`/`_dt` field-naming
+      convention was already chosen to match `_default`'s built-in dynamic
+      field patterns). Idempotent via a CoreAdminHandler `STATUS` check first.
+  - **Bug caught by its own test, fixed before commit:** the first
+        `coreExists()` implementation used `!empty($body['status'][$core])`,
+        which misreports "doesn't exist" whenever Solr's status object for
+        that core happens to be empty/falsy. Fixed to
+        `array_key_exists($core, $body['status'])`, the semantically correct
+        check ("is this core present in the map" vs. "is its value truthy").
+  - `SchemaManager` lost its `final` modifier for the same reason
+        `ProviderRegistry`/`ProviderFactory` did in Phase 2a: this repo keeps
+        services non-final specifically so dependents can mock them in tests
+        (third time fixing this same class-of-mistake this session — worth
+        remembering as a standing rule, not a per-file fix).
+- [x] `Domain\Service\ProvisioningService` — backend-aware orchestrator:
+      Solr → `ensureCoresExist()` + `ensureVectorFieldExistsInAllCores()`;
+      Meilisearch → `ensureIndex()` per **site language** (via `SiteFinder`,
+      not coupled to Solr's `coreMapping`) plus a no-language default;
+      indexed_search → a "nothing to provision" message rather than silently
+      doing nothing.
+- [x] `mai-search:provision` CLI command and a "Provision Infrastructure"
+      button in the Search Index Management backend module, both driven by the
+      same `ProvisioningService` so they can't drift.
+- [x] Tests for all of the above; 12 more tests added on top of Phase 2b's
+      count. Full suite, PHPStan, PHP-CS-Fixer, EditorConfig all clean.
+
+**Not done, flagged rather than assumed:** the root project's own `vendor/`
+doesn't have `meilisearch/meilisearch-php` installed yet — `composer.json` for
+`mai_search` now requires it, but nobody has run `composer update` at the
+*root* project level to actually pull it into the live site's vendor and
+`composer.lock`. That's a deliberately separate, more consequential action
+(touches the root repo's own lock file, which already has unrelated
+uncommitted changes sitting in it from before this session) — flagged for you
+to run rather than done silently.
+
 ### Phase 3 — Queue-based indexing + lifecycle events (P1)
 
 Replaces synchronous hook→indexer calls with the ext-solr queue/worker split.

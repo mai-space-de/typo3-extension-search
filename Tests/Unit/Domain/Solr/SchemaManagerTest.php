@@ -232,4 +232,122 @@ final class SchemaManagerTest extends TestCase
 
         return new SchemaManager($factory, $httpClient);
     }
+
+    private function endpointConnection(): SolrClientInterface
+    {
+        $endpoint = new \Solarium\Core\Client\Endpoint([
+            'scheme' => 'http',
+            'host' => 'localhost',
+            'port' => 8983,
+            'core' => 'core_en',
+        ]);
+
+        $connection = $this->createMock(SolrClientInterface::class);
+        $connection->method('getEndpoint')->willReturn($endpoint);
+
+        return $connection;
+    }
+
+    #[Test]
+    public function ensureCoresExistCreatesMissingCoresOnly(): void
+    {
+        $factory = $this->createMock(ConnectionFactory::class);
+        $factory->method('getCoreMapping')->willReturn(['en' => 'core_en', 'de' => 'core_de']);
+        $factory->method('getConnection')->willReturn($this->endpointConnection());
+
+        $requests = [];
+        $httpClient = $this->createMock(ClientInterface::class);
+        $httpClient
+            ->method('request')
+            ->willReturnCallback(function (string $method, string $url, array $options) use (&$requests) {
+                $requests[] = $options['query'];
+                $core = $options['query']['core'] ?? $options['query']['name'] ?? null;
+
+                if ($options['query']['action'] === 'STATUS') {
+                    $exists = $core === 'core_en';
+
+                    return new Response(200, [], json_encode([
+                        'status' => $exists ? [$core => ['name' => $core]] : [],
+                    ], JSON_THROW_ON_ERROR));
+                }
+
+                return new Response(200);
+            });
+
+        $manager = new SchemaManager($factory, $httpClient);
+        $created = $manager->ensureCoresExist();
+
+        self::assertSame(['core_de'], $created);
+        self::assertCount(3, $requests); // STATUS core_en, STATUS core_de, CREATE core_de
+    }
+
+    #[Test]
+    public function ensureCoresExistFallsBackToDefaultCoreWhenMappingEmpty(): void
+    {
+        $factory = $this->createMock(ConnectionFactory::class);
+        $factory->method('getCoreMapping')->willReturn([]);
+        $factory->method('getConnection')->willReturn($this->endpointConnection());
+
+        $httpClient = $this->createMock(ClientInterface::class);
+        $httpClient
+            ->method('request')
+            ->willReturnCallback(function (string $method, string $url, array $options) {
+                if ($options['query']['action'] === 'STATUS') {
+                    return new Response(200, [], json_encode(['status' => []], JSON_THROW_ON_ERROR));
+                }
+
+                return new Response(200);
+            });
+
+        $manager = new SchemaManager($factory, $httpClient);
+        $created = $manager->ensureCoresExist();
+
+        self::assertSame(['core_en'], $created);
+    }
+
+    #[Test]
+    public function ensureCoresExistReturnsEmptyArrayWhenAllCoresAlreadyExist(): void
+    {
+        $factory = $this->createMock(ConnectionFactory::class);
+        $factory->method('getCoreMapping')->willReturn(['en' => 'core_en']);
+        $factory->method('getConnection')->willReturn($this->endpointConnection());
+
+        $httpClient = $this->createMock(ClientInterface::class);
+        $httpClient
+            ->expects(self::once())
+            ->method('request')
+            ->willReturn(new Response(200, [], json_encode(['status' => ['core_en' => []]], JSON_THROW_ON_ERROR)));
+
+        $manager = new SchemaManager($factory, $httpClient);
+
+        self::assertSame([], $manager->ensureCoresExist());
+    }
+
+    #[Test]
+    public function ensureCoresExistIgnoresAlreadyExistsErrorDuringCreate(): void
+    {
+        $factory = $this->createMock(ConnectionFactory::class);
+        $factory->method('getCoreMapping')->willReturn(['en' => 'core_en']);
+        $factory->method('getConnection')->willReturn($this->endpointConnection());
+
+        $alreadyExistsException = new RequestException(
+            'Client error: 400 Bad Request — Core with name \'core_en\' already exists',
+            new Request('GET', 'http://localhost:8983/solr/admin/cores'),
+        );
+
+        $httpClient = $this->createMock(ClientInterface::class);
+        $httpClient
+            ->method('request')
+            ->willReturnCallback(function (string $method, string $url, array $options) use ($alreadyExistsException) {
+                if ($options['query']['action'] === 'STATUS') {
+                    return new Response(200, [], json_encode(['status' => []], JSON_THROW_ON_ERROR));
+                }
+
+                throw $alreadyExistsException;
+            });
+
+        $manager = new SchemaManager($factory, $httpClient);
+
+        self::assertSame(['core_en'], $manager->ensureCoresExist());
+    }
 }

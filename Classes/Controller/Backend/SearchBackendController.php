@@ -7,6 +7,7 @@ namespace Maispace\MaiSearch\Controller\Backend;
 use Maispace\MaiBase\Controller\Backend\AbstractBackendController;
 use Maispace\MaiBase\Controller\Traits\ResponseHelpersTrait;
 use Maispace\MaiSearch\Domain\Service\IndexManagementService;
+use Maispace\MaiSearch\Domain\Service\ProvisioningService;
 use Maispace\MaiSearch\Domain\Solr\ConnectionFactory;
 use Maispace\MaiSearch\Service\IndexerRegistry;
 use Psr\Http\Message\ResponseInterface;
@@ -25,6 +26,7 @@ class SearchBackendController extends AbstractBackendController
         private readonly IndexManagementService $indexManagementService,
         private readonly ConnectionFactory $connectionFactory,
         private readonly IndexerRegistry $indexerRegistry,
+        private readonly ProvisioningService $provisioningService,
     ) {
         parent::__construct($moduleTemplateFactory, $iconFactory);
     }
@@ -92,6 +94,34 @@ class SearchBackendController extends AbstractBackendController
         } catch (\Throwable $e) {
             $this->flashError(
                 sprintf('Failed to clear index: %s', $e->getMessage()),
+            );
+        }
+
+        return $this->redirect('index');
+    }
+
+    public function provisionAction(): ResponseInterface
+    {
+        try {
+            $result = $this->provisioningService->provision();
+
+            if ($result->message !== null) {
+                $this->flashSuccess($result->message);
+            } elseif ($result->provisioned === []) {
+                $this->flashSuccess(sprintf('%s: everything already exists, nothing to do.', $result->backend));
+            } else {
+                $this->flashSuccess(
+                    sprintf(
+                        '%s: provisioned %d item(s): %s',
+                        $result->backend,
+                        count($result->provisioned),
+                        implode(', ', $result->provisioned),
+                    ),
+                );
+            }
+        } catch (\Throwable $e) {
+            $this->flashError(
+                sprintf('Provisioning failed: %s', $e->getMessage()),
             );
         }
 

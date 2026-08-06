@@ -6,6 +6,7 @@ namespace Maispace\MaiSearch\Tests\Unit\Controller\Backend;
 
 use Maispace\MaiSearch\Controller\Backend\SearchBackendController;
 use Maispace\MaiSearch\Domain\Service\IndexManagementService;
+use Maispace\MaiSearch\Domain\Service\ProvisioningService;
 use Maispace\MaiSearch\Domain\Solr\ConnectionFactory;
 use Maispace\MaiSearch\Service\IndexerRegistry;
 use PHPUnit\Framework\Attributes\Test;
@@ -62,6 +63,17 @@ final class SearchBackendControllerTest extends TestCase
     }
 
     #[Test]
+    public function controllerHasProvisioningServiceDependency(): void
+    {
+        $params = (new \ReflectionMethod(SearchBackendController::class, '__construct'))
+            ->getParameters();
+
+        $param = $this->findParam($params, 'provisioningService');
+        self::assertInstanceOf(\ReflectionNamedType::class, $param->getType());
+        self::assertSame(ProvisioningService::class, $param->getType()->getName());
+    }
+
+    #[Test]
     public function indexActionMethodExists(): void
     {
         self::assertTrue(method_exists(SearchBackendController::class, 'indexAction'));
@@ -103,6 +115,22 @@ final class SearchBackendControllerTest extends TestCase
     public function clearActionReturnsResponseInterface(): void
     {
         $returnType = (new \ReflectionMethod(SearchBackendController::class, 'clearAction'))
+            ->getReturnType();
+
+        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        self::assertSame(ResponseInterface::class, $returnType->getName());
+    }
+
+    #[Test]
+    public function provisionActionMethodExists(): void
+    {
+        self::assertTrue(method_exists(SearchBackendController::class, 'provisionAction'));
+    }
+
+    #[Test]
+    public function provisionActionReturnsResponseInterface(): void
+    {
+        $returnType = (new \ReflectionMethod(SearchBackendController::class, 'provisionAction'))
             ->getReturnType();
 
         self::assertInstanceOf(\ReflectionNamedType::class, $returnType);

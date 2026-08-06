@@ -36,6 +36,12 @@
             <trans-unit id="index.clear.confirm">
                 <source>Are you sure you want to clear the entire search index? This action cannot be undone.</source>
             </trans-unit>
+            <trans-unit id="index.provision.title">
+                <source>Create the Solr cores or Meilisearch indexes the active backend needs</source>
+            </trans-unit>
+            <trans-unit id="index.provision.button">
+                <source>Provision Infrastructure</source>
+            </trans-unit>
             <trans-unit id="index.inspect.title">
                 <source>Index Inspection</source>
             </trans-unit>
