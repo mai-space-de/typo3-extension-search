@@ -14,6 +14,7 @@
         "guzzlehttp/guzzle": "^7.0",
         "maispace/mai-base": "@dev",
         "maispace/mai-turbo": "^14.0",
+        "meilisearch/meilisearch-php": "^1.9",
         "solarium/solarium": "^7.0",
         "typo3/cms-core": "^14.1",
         "typo3/cms-dashboard": "^14.1",

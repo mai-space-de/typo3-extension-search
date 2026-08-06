@@ -1,20 +1,31 @@
-# cat=basic/enable/10; type=options[Apache Solr=solr,Meilisearch=meilisearch,TYPO3 indexed_search=indexed_search]; label=Active search backend: Selects which SearchBackendInterface implementation SearchService/IndexManagementService delegate to. Meilisearch and indexed_search backends are added in later phases (SPEC-v2.md) — selecting them before then falls back to Solr.
+# cat=basic/enable/10; type=options[Apache Solr=solr,Meilisearch=meilisearch,TYPO3 indexed_search=indexed_search]; label=Active search backend: Selects which SearchBackendInterface implementation SearchService/IndexManagementService delegate to. Falls back to Solr if the configured backend isn't registered.
 activeBackend = solr
 
+# Solr settings are intentionally flat (no `solr.` prefix): Domain\Solr\ConnectionFactory
+# predates this template and reads $extensionConfiguration->get('mai_search')['host'] etc.
+# directly, not nested under a 'solr' key — matched here rather than changed there, since
+# that class (and its full test suite) already ships and works. See SPEC-v2.md Phase 2b.
+
 # cat=solr/enable/10; type=string; label=Solr host
-solr.host = solr
+host = solr
 
 # cat=solr/enable/20; type=int+; label=Solr port
-solr.port = 8983
+port = 8983
 
 # cat=solr/enable/30; type=string; label=Solr path (leave empty unless Solr sits behind a reverse-proxy path prefix)
-solr.path =
+path =
 
 # cat=solr/enable/40; type=string; label=Default Solr core (used when no per-language core mapping matches)
-solr.core = core_en
+core = core_en
 
 # cat=solr/enable/50; type=options[http=http,https=https]; label=Solr scheme
-solr.scheme = http
+scheme = http
+
+# cat=meilisearch/enable/10; type=string; label=Meilisearch host URL
+meilisearch.host = http://localhost:7700
+
+# cat=meilisearch/enable/20; type=string; label=Meilisearch API key (master/admin key)
+meilisearch.apiKey =
 
 # cat=providers/enable/10; type=options[OpenAI=openai,Ollama=ollama,Custom=custom]; label=Active embedding provider (used for hybrid KNN re-rank and, once wired, chunk vectors)
 embeddingProvider = openai

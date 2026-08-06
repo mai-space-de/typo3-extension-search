@@ -329,48 +329,115 @@ Resolves the three-way provider reconciliation flagged at the end of Phase 1.
       clean (including a stale `phpstan-baseline.neon` entry removed — it
       referenced the now-deleted `VectorEmbeddingAdapter.php`), PHP-CS-Fixer clean.
 
-### Phase 2b — MeilisearchBackend + indexer contract merge (P0, paused for check-in)
+### Phase 2b — MeilisearchBackend (P0) — ✅ backend done, indexer wiring split to 2c
 
-**Not started.** This is a materially different scope of change than 2a: it
-touches `AbstractIndexer`, the shared base class **ten other `mai_*`
-extensions' concrete indexers** (`NewsIndexer`, `FaqIndexer`, `GalleryIndexer`,
-`JobsIndexer`, `LocationIndexer`, `MemberIndexer`, `TeamMemberIndexer`,
-`TestimonialsIndexer`, `TimelineIndexer`, `EventIndexer`) depend on — a
-cross-package blast radius Phase 2a deliberately avoided. Confirmed by reading
-`NewsIndexer`: it already fully implements `indexAll`/`indexRecord`/
-`removeRecord`/`supports`/`getType` itself and only borrows `AbstractIndexer`'s
-`createDocument()`/`sendDocument()` helpers — so the `SearchIndexerInterface`
-method signatures don't strictly need to change for backward compatibility,
-but the "reconcile the indexer contract" checklist item below still touches
-shared, widely-depended-on code and deserves its own go/no-go rather than
-riding on Phase 2a's momentum.
+**Status: the backend itself is done; the cross-package indexer-contract merge
+is split out further as Phase 2c and still not started.**
 
-Outstanding work, unchanged from the original plan:
+- [x] Ported `Domain/Client/{MeilisearchClient,ConnectionFactory,
+      MeilisearchClientInterface,MeilisearchDocument}` and the search-response
+      DTO from `mai_meilisearch` into `mai_search` as `Backend/Meilisearch/*`.
+  - **Deviated from the plan's original per-site-memoization idea:**
+        checked `mai_meilisearch`'s actual `ConnectionFactory` first — it has no
+        per-site memoization at all (one global host/API key, a fresh client
+        per call), because this project runs one Meilisearch instance for the
+        whole install, not one per TYPO3 site. Ported that simpler reality
+        rather than building unneeded per-site caching the source doesn't have.
+  - **Index-naming decision (asked and answered):** consolidated to **one
+        index per language, all types together, `type` as a filterable
+        attribute** (`Backend/Meilisearch/IndexNameResolver::forLanguage()`),
+        replacing `mai_meilisearch`'s original one-index-per-type-per-language
+        convention. Mirrors `SolrBackend`'s shape exactly (one query, all
+        types, type as a facet) — the `t3meilisearch` single-index-with-filters
+        lesson from the original research, applied here instead of Phase 7.
+  - Interface trimmed vs. the source: dropped `deleteByFilter` (no caller yet);
+        merged `ensureIndex`+`updateSettings` into one
+        `ensureIndex($indexUid, $filterableAttributes, $primaryKey)` call.
+- [x] Implemented `MeilisearchBackend implements SearchBackendInterface`
+      (`getIdentifier` = 'meilisearch', realtime indexing + facets + comparable
+      score all `true`). `indexDocument()` ensures the per-language index
+      (memoized per request via an in-memory flag, not re-sent per document)
+      and writes a flat Meilisearch document; `removeDocument()` deletes by
+      composed id from the default-language index (same known limitation
+      `SolrBackend`/`NewsIndexer::removeRecord()` already have — not a new gap).
+  - **`getCapabilities()->supportsVectorSearch = false`, deliberately.** Hybrid
+        search needs an `embedders` config derived from whichever
+        `EmbeddingProviderInterface` is active — a real, Meilisearch-specific
+        mapping that Phase 2a intentionally kept off the generic provider
+        interface. Building that mapping under this phase's time budget would
+        have meant half-implementing it; it's deferred to Phase 7 alongside the
+        chunk-index RAG upgrade, where it has an actual home.
+  - **Result-formatter shim, load-bearing and worth reading closely:** every
+        existing `SearchResultFormatterInterface::formatResult(array $solrDoc)`
+        implementation (`NewsIndexer`, `FaqIndexer`, `EventIndexer`, ... —
+        confirmed identical pattern in all three sampled) reads Solr's
+        `_s`/`_t`-suffixed field names directly. Meilisearch documents are flat
+        (`title`, `content`, `url`, ...). Rather than editing ten indexers'
+        formatters, `MeilisearchBackend::toSolrShapedArray()` translates each
+        Meilisearch hit into the same Solr-shaped array before calling the
+        existing formatter unchanged. This is a deliberate, temporary adapter —
+        replace it once Phase 2c (below) generalizes the formatter contract
+        itself.
+- [x] Wired into `Configuration/Services.yaml` (`maispace.search.backend` tag),
+      added `meilisearch/meilisearch-php` to `composer.json`, added
+      `meilisearch.host`/`meilisearch.apiKey` to `ext_conf_template.txt`.
+  - **Bug fixed in passing, from Phase 0:** `ext_conf_template.txt`'s dotted
+        keys produce a *nested* settings array (confirmed — this is exactly how
+        `openai.*`/`ollama.*`/etc. already worked from Phase 2a), but
+        `Domain\Solr\ConnectionFactory` reads `$typoScriptSettings['host']`
+        *flat*, predating this template entirely. Fixed by making the Solr
+        section of the template flat (`host`, `port`, `path`, `core`, `scheme`,
+        no prefix) to match the existing, tested `ConnectionFactory` — not by
+        changing that already-shipped, already-tested class. Net effect:
+        `mai_search`'s `ExtensionConfiguration` array has a mixed shape (Solr
+        keys flat, everything else nested under its backend name) — an
+        accepted wart, not something to silently "fix" by touching working code.
+- [x] Tests: `MeilisearchClientTest`, `IndexNameResolverTest`,
+      `MeilisearchBackendTest`. 246 tests / 633 assertions total, PHPStan level
+      5 clean, PHP-CS-Fixer clean. Validated via a scratch, throwaway Composer
+      project (`meilisearch/meilisearch-php` isn't installed anywhere in this
+      monorepo, unlike `typo3/cms-indexed-search` in Phase 1 — `mai_meilisearch`
+      itself has no `vendor/` at all) bridged the same way as Phase 1's
+      indexed_search validation; not committed, cleaned up after use.
+- [x] Left `mai_meilisearch` untouched, per your instruction — it remains your
+      Meilisearch playground/reference, not modified by this work.
 
-- [ ] Port `Domain/Client/{MeilisearchClient,ConnectionFactory}.php` from
-      `mai_meilisearch` into `mai_search` as `Backend/Meilisearch/*`. Apply the
-      Meilisearch-14.0.1 lesson: memoize the client **per site**, and keep the raw
-      SDK client reachable alongside any wrapper for features an abstraction
-      doesn't expose.
-  - Also fold in `t3meilisearch`'s finding: filterable-attribute scoping
-        (`rootPageId`, `languageId`) on a **single index** is simpler ops than one
-        index per site/language — the current `IndexNameResolver` design should be
-        revisited here, but only after confirming with the user (see Phase 7 note;
-        this is a real behavior tradeoff, not a pure refactor).
-- [ ] Implement `MeilisearchBackend implements SearchBackendInterface` wrapping
-      the ported client — `getCapabilities()` reports `supportsVectorSearch = true`.
-- [ ] Reconcile the indexer contract: `mai_meilisearch`'s `IndexerInterface`
-      (`toDocument()`, `\Generator`-based `indexAll()`) has a cleaner document-build
-      shape than `mai_search`'s current `AbstractIndexer`. Merge the better parts
-      into the canonical `SearchIndexerInterface` — keep the DI-tag registration
-      (decision #2 above), take the generator-based streaming and `toDocument()`
-      split from `mai_meilisearch`.
-- [ ] Every existing `mai_*` indexer (news, faq, gallery, jobs, locations, member,
-      team, testimonials, timeline — see the table in `SPEC-v1.md`) keeps working
-      unchanged against the merged interface; add a compatibility test per indexer.
-- [ ] Update `mai_search/composer.json`: add `meilisearch/meilisearch-php`.
-- [ ] Leave `mai_meilisearch` untouched. Add a short note to its `README.md`
-      pointing to `mai_search`'s `MeilisearchBackend` as the production path.
+**Investigated (read-only), confirms Phase 2c is real, separate work:** sampled
+`NewsIndexer`, `FaqIndexer`, and `EventIndexer` across three different
+extensions — all three fully implement `indexAll`/`indexRecord`/`removeRecord`/
+`supports`/`getType` themselves (only borrowing `AbstractIndexer::
+createDocument()`/`sendDocument()`/`getBoost()`), confirming
+`SearchIndexerInterface`'s signatures don't need to change for backward
+compatibility. But none of them can write to Meilisearch today: each one's
+`indexRecord()` builds a `Domain\Solr\Document` and calls
+`$this->connectionFactory->getConnection()` (`Domain\Solr\ConnectionFactory`)
+directly — hardcoded to Solr, not routed through `BackendRegistry`. Making
+these ten indexers truly backend-agnostic (so a site running
+`activeBackend = meilisearch` actually gets indexed) requires either
+redesigning `AbstractIndexer` to build `SearchDocumentInput` and call
+`BackendRegistry::getActive()->indexDocument()` instead, or giving each
+indexer a second Meilisearch-aware code path — real, cross-package work
+touching all ten extensions, correctly out of scope for a single phase.
+
+### Phase 2c — Route existing indexers through BackendRegistry (P0, not started)
+
+Split out from Phase 2b's original scope after confirming (above) that it's
+real, cross-package work, not a byproduct of the backend/provider work.
+
+- [ ] Redesign `AbstractIndexer` so `indexRecord()`/`removeRecord()` build a
+      `SearchDocumentInput` and call `BackendRegistry::getActive()->
+      indexDocument()`/`removeDocument()`, instead of each indexer building a
+      `Domain\Solr\Document` and calling `Domain\Solr\ConnectionFactory` directly.
+- [ ] Update all ten indexers (`NewsIndexer`, `FaqIndexer`, `GalleryIndexer`,
+      `JobsIndexer`, `LocationIndexer`, `MemberIndexer`, `TeamMemberIndexer`,
+      `TestimonialsIndexer`, `TimelineIndexer`, `EventIndexer`) across their
+      own extensions accordingly; add a compatibility test per indexer.
+- [ ] Generalize `SearchResultFormatterInterface::formatResult()` off Solr's
+      `_s`/`_t` field-naming convention, retiring `MeilisearchBackend::
+      toSolrShapedArray()`'s shim once every formatter reads backend-neutral
+      field names instead.
+- [ ] Re-confirm the "one class implements both interfaces" DI-tag convention
+      still holds once indexers stop being Solr-specific.
 
 ### Phase 3 — Queue-based indexing + lifecycle events (P1)
 

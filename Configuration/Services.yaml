@@ -33,6 +33,10 @@ services:
     tags:
       - name: 'maispace.search.backend'
 
+  Maispace\MaiSearch\Backend\Meilisearch\MeilisearchBackend:
+    tags:
+      - name: 'maispace.search.backend'
+
   Maispace\MaiSearch\Service\ProviderRegistry:
     public: true
 
