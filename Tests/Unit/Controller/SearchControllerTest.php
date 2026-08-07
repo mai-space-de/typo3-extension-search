@@ -95,6 +95,20 @@ final class SearchControllerTest extends TestCase
     }
 
     #[Test]
+    public function resultsActionIsRateLimited(): void
+    {
+        $attributes = (new \ReflectionMethod(SearchController::class, 'resultsAction'))
+            ->getAttributes(\TYPO3\CMS\Extbase\Attribute\RateLimit::class);
+
+        self::assertCount(1, $attributes);
+
+        /** @var \TYPO3\CMS\Extbase\Attribute\RateLimit $rateLimit */
+        $rateLimit = $attributes[0]->newInstance();
+        self::assertSame(30, $rateLimit->limit);
+        self::assertSame('1 minute', $rateLimit->interval);
+    }
+
+    #[Test]
     public function resultsActionAcceptsTypeAndPageParameters(): void
     {
         $params = (new \ReflectionMethod(SearchController::class, 'resultsAction'))

@@ -8,6 +8,7 @@ use Maispace\MaiSearch\Domain\Service\SearchService;
 use Maispace\MaiSearch\Domain\Service\SearchSynthesisService;
 use Psr\Http\Message\ResponseInterface;
 use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
+use TYPO3\CMS\Extbase\Attribute\RateLimit;
 use TYPO3\CMS\Extbase\Mvc\Controller\ActionController;
 
 class SearchController extends ActionController
@@ -25,6 +26,7 @@ class SearchController extends ActionController
         return $this->resultsAction();
     }
 
+    #[RateLimit(limit: 30, interval: '1 minute')]
     public function resultsAction(string $query = '', string $type = '', int $page = 1): ResponseInterface
     {
         $ragEnabled = $this->resolveRagEnabled();
