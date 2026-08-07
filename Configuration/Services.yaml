@@ -43,6 +43,9 @@ services:
   Maispace\MaiSearch\Service\ProviderAvailabilityService:
     public: true
 
+  Maispace\MaiSearch\Extraction\ExtractorRegistry:
+    public: true
+
   # Explicit alias so resolution doesn't depend on Symfony's "only one
   # implementation exists" auto-wiring rule, which vanishes the moment a
   # second RerankerInterface implementation is added (see .lookup/smart-search's
