@@ -19,4 +19,18 @@ interface SearchIndexerInterface
     public function getBoost(string $type): float;
 
     public function supports(string $table): bool;
+
+    /**
+     * Return the primary table name this indexer handles.
+     * Used by FullReindexTask to repopulate the queue.
+     */
+    public function getTableName(): string;
+
+    /**
+     * Return all record UIDs that should be indexed for the given context.
+     * Used by FullReindexTask to repopulate the queue instead of indexing directly.
+     *
+     * @return iterable<int> Record UIDs
+     */
+    public function getRecordUidsForReindex(IndexingContext $context): iterable;
 }

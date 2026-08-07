@@ -14,11 +14,18 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 class PageIndexer extends AbstractIndexer implements SearchResultFormatterInterface
 {
+    use TcaEnableColumnsTrait;
+
     private const DOKTYPE_STANDARD = 1;
 
     public function getType(): string
     {
         return 'page';
+    }
+
+    public function getTableName(): string
+    {
+        return 'pages';
     }
 
     public function supports(string $table): bool
@@ -160,24 +167,16 @@ class PageIndexer extends AbstractIndexer implements SearchResultFormatterInterf
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
             ->getQueryBuilderForTable('pages');
 
-        $constraints = [
-            $queryBuilder->expr()->eq('doktype', $queryBuilder->createNamedParameter(self::DOKTYPE_STANDARD, Connection::PARAM_INT)),
-            $queryBuilder->expr()->eq('hidden', $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)),
-            $queryBuilder->expr()->eq('deleted', $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)),
-            $queryBuilder->expr()->eq('no_search', $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)),
-        ];
-
-        if ($context->languageUid !== null) {
-            $constraints[] = $queryBuilder->expr()->eq(
-                'sys_language_uid',
-                $queryBuilder->createNamedParameter($context->languageUid, Connection::PARAM_INT),
+        $queryBuilder->select('uid', 'title', 'description', 'slug', 'crdate', 'tstamp', 'pid')
+            ->from('pages')
+            ->where(
+                $queryBuilder->expr()->eq('doktype', $queryBuilder->createNamedParameter(self::DOKTYPE_STANDARD, Connection::PARAM_INT)),
             );
-        }
+
+        $this->addEnableColumnConstraints($queryBuilder, 'pages');
+        $this->addLanguageConstraint($queryBuilder, $context->languageUid);
 
         $rows = $queryBuilder
-            ->select('uid', 'title', 'description', 'slug', 'crdate', 'tstamp', 'pid')
-            ->from('pages')
-            ->where(...$constraints)
             ->setMaxResults($context->batchSize)
             ->setFirstResult($context->offset)
             ->executeQuery()
@@ -191,6 +190,32 @@ class PageIndexer extends AbstractIndexer implements SearchResultFormatterInterf
 
             return $obj;
         }, $rows);
+    }
+
+    /**
+     * Optimized: only fetch UIDs for queue repopulation, not full records.
+     *
+     * @return iterable<int>
+     */
+    public function getRecordUidsForReindex(IndexingContext $context): iterable
+    {
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
+            ->getQueryBuilderForTable('pages');
+
+        $queryBuilder->select('uid')
+            ->from('pages')
+            ->where(
+                $queryBuilder->expr()->eq('doktype', $queryBuilder->createNamedParameter(self::DOKTYPE_STANDARD, Connection::PARAM_INT)),
+            );
+
+        $this->addEnableColumnConstraints($queryBuilder, 'pages');
+        $this->addLanguageConstraint($queryBuilder, $context->languageUid);
+
+        $uids = $queryBuilder
+            ->executeQuery()
+            ->fetchFirstColumn();
+
+        return array_map('intval', $uids);
     }
 
     public function formatResult(array $solrDoc): SearchResult

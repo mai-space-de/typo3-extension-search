@@ -5,8 +5,12 @@ declare(strict_types=1);
 namespace Maispace\MaiSearch\Domain\Service;
 
 use Maispace\MaiSearch\Domain\Model\IndexingContext;
+use Maispace\MaiSearch\Event\AfterRecordIndexedEvent;
+use Maispace\MaiSearch\Event\BeforeRecordIndexedEvent;
+use Maispace\MaiSearch\Event\BeforeRecordRemovedEvent;
 use Maispace\MaiSearch\Service\IndexerRegistry;
 use Maispace\MaiSearch\Service\IndexQueueRepository;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
 use TYPO3\CMS\Core\Database\Connection;
@@ -36,6 +40,7 @@ class IndexQueueProcessor implements LoggerAwareInterface, SingletonInterface
         private readonly IndexerRegistry $indexerRegistry,
         private readonly ConnectionPool $connectionPool,
         private readonly SiteFinder $siteFinder,
+        private readonly EventDispatcherInterface $eventDispatcher,
     ) {}
 
     /**
@@ -80,6 +85,9 @@ class IndexQueueProcessor implements LoggerAwareInterface, SingletonInterface
 
         try {
             if ($operation === IndexQueueRepository::OPERATION_REMOVE) {
+                $this->eventDispatcher->dispatch(
+                    new BeforeRecordRemovedEvent($indexer->getType(), $table, $recordUid),
+                );
                 $indexer->removeRecord($recordUid, $table);
             } else {
                 $this->indexRecord($indexer, $table, $recordUid);
@@ -115,12 +123,21 @@ class IndexQueueProcessor implements LoggerAwareInterface, SingletonInterface
         }
 
         $languageUid = isset($record->sys_language_uid) ? (int) $record->sys_language_uid : 0;
-
-        $indexer->indexRecord($record, new IndexingContext(
+        $context = new IndexingContext(
             core: '',
             languageCode: $this->resolveLanguageCode($languageUid),
             languageUid: $languageUid,
-        ));
+        );
+
+        $this->eventDispatcher->dispatch(
+            new BeforeRecordIndexedEvent($record, $context, $indexer->getType(), $table, $recordUid),
+        );
+
+        $indexer->indexRecord($record, $context);
+
+        $this->eventDispatcher->dispatch(
+            new AfterRecordIndexedEvent($record, $context, $indexer->getType(), $table, $recordUid),
+        );
     }
 
     /**

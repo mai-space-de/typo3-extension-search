@@ -7,7 +7,11 @@ namespace Maispace\MaiSearch\Indexer;
 use Maispace\MaiSearch\Domain\Model\IndexingContext;
 use Maispace\MaiSearch\Domain\Model\SearchDocumentInput;
 use Maispace\MaiSearch\Domain\Service\SearchIndexerInterface;
+use Maispace\MaiSearch\Event\AfterDocumentBuiltEvent;
+use Maispace\MaiSearch\Event\BeforeDocumentBuiltEvent;
 use Maispace\MaiSearch\Service\BackendRegistry;
+use Psr\EventDispatcher\EventDispatcherInterface;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * SPEC-v2.md Phase 2c: indexers build a backend-agnostic SearchDocumentInput
@@ -21,9 +25,16 @@ abstract class AbstractIndexer implements SearchIndexerInterface
 {
     protected BackendRegistry $backendRegistry;
 
+    protected ?EventDispatcherInterface $eventDispatcher = null;
+
     public function injectBackendRegistry(BackendRegistry $backendRegistry): void
     {
         $this->backendRegistry = $backendRegistry;
+    }
+
+    public function injectEventDispatcher(EventDispatcherInterface $eventDispatcher): void
+    {
+        $this->eventDispatcher = $eventDispatcher;
     }
 
     /**
@@ -60,6 +71,46 @@ abstract class AbstractIndexer implements SearchIndexerInterface
         $this->backendRegistry->getActive()->indexDocument($document);
     }
 
+    /**
+     * Build a document with PSR-14 events dispatched before and after.
+     *
+     * Indexers should call this instead of createDocument() directly to enable
+     * third-party listeners to inspect/modify the document.
+     */
+    protected function buildDocumentWithEvents(
+        object $record,
+        IndexingContext $context,
+        string $type,
+        int $uid,
+        string $title,
+        string $content,
+        string $url,
+        \DateTimeInterface $crdate,
+        float $boost,
+        array $rootline = [],
+    ): SearchDocumentInput {
+        $this->eventDispatcher?->dispatch(
+            new BeforeDocumentBuiltEvent($record, $context, $type),
+        );
+
+        $document = $this->createDocument(
+            $type,
+            $uid,
+            $title,
+            $content,
+            $url,
+            $crdate,
+            $boost,
+            $rootline,
+        );
+
+        $this->eventDispatcher?->dispatch(
+            new AfterDocumentBuiltEvent($document, $record, $context, $type),
+        );
+
+        return $document;
+    }
+
     protected function removeDocument(int $uid): void
     {
         $this->backendRegistry->getActive()->removeDocument($this->getType(), $uid);
@@ -68,6 +119,34 @@ abstract class AbstractIndexer implements SearchIndexerInterface
     public function getBoost(string $type): float
     {
         return 1.0;
+    }
+
+    /**
+     * Default implementation: return the first table this indexer supports.
+     * Subclasses handling multiple tables should override this.
+     */
+    public function getTableName(): string
+    {
+        // This is a fallback; concrete indexers should override
+        return '';
+    }
+
+    /**
+     * Default implementation: iterate through getRecordsForIndexing() and extract UIDs.
+     * Subclasses can override for better performance if they have a direct query.
+     *
+     * @return iterable<int>
+     */
+    public function getRecordUidsForReindex(IndexingContext $context): iterable
+    {
+        $uids = [];
+        foreach ($this->getRecordsForIndexing($context) as $record) {
+            if (isset($record->uid)) {
+                $uids[] = (int) $record->uid;
+            }
+        }
+
+        return $uids;
     }
 
     abstract protected function buildContent(object $record): string;

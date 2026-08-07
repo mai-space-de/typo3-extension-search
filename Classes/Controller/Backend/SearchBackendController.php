@@ -71,11 +71,12 @@ class SearchBackendController extends AbstractBackendController
             $coreMapping = $this->connectionFactory->getCoreMapping();
             $indexers = $this->indexerRegistry->getAll();
 
-            $this->indexManagementService->reindexAll();
+            $enqueued = $this->indexManagementService->repopulateQueue($this->indexQueueRepository);
 
             $this->flashSuccess(
                 sprintf(
-                    'Full re-index completed across %d core(s) with %d indexer(s).',
+                    'Enqueued %d record(s) for re-indexing across %d core(s) with %d indexer(s). Queue will be processed by scheduler.',
+                    $enqueued,
                     $coreMapping === [] ? 1 : count($coreMapping),
                     count($indexers),
                 ),

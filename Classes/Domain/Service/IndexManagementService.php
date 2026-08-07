@@ -10,6 +10,7 @@ use Maispace\MaiSearch\Domain\Solr\Document;
 use Maispace\MaiSearch\Domain\Solr\SchemaManager;
 use Maispace\MaiSearch\Domain\Solr\SearchQuery;
 use Maispace\MaiSearch\Service\IndexerRegistry;
+use Maispace\MaiSearch\Service\IndexQueueRepository;
 use Maispace\MaiSearch\Service\ProviderRegistry;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
@@ -146,6 +147,78 @@ class IndexManagementService implements SingletonInterface, LoggerAwareInterface
                 $indexer->indexAll($context);
             }
         }
+    }
+
+    /**
+     * Repopulate the index queue for all registered indexers instead of indexing directly.
+     *
+     * This is the queue-based alternative to reindexAll(): instead of pushing documents
+     * directly to the backend, it enqueues all records for async processing by
+     * IndexQueueProcessor. This ensures reindexing and realtime sync share exactly
+     * one write path (the queue).
+     *
+     * @param IndexQueueRepository $indexQueueRepository The queue repository to populate
+     * @return int Number of jobs enqueued
+     */
+    public function repopulateQueue(IndexQueueRepository $indexQueueRepository): int
+    {
+        if ($this->indexerRegistry === null) {
+            return 0;
+        }
+
+        $coreMapping = $this->connectionFactory->getCoreMapping();
+        $indexers = $this->indexerRegistry->getAll();
+        $enqueued = 0;
+
+        if ($coreMapping === []) {
+            $context = GeneralUtility::makeInstance(
+                IndexingContext::class,
+                'core_en',
+                100,
+                0,
+            );
+
+            foreach ($indexers as $indexer) {
+                $table = $indexer->getTableName();
+                if ($table === '') {
+                    continue;
+                }
+
+                foreach ($indexer->getRecordUidsForReindex($context) as $uid) {
+                    $indexQueueRepository->enqueue($table, $uid, IndexQueueRepository::OPERATION_INDEX);
+                    $enqueued++;
+                }
+            }
+
+            return $enqueued;
+        }
+
+        $languages = $this->resolveSiteLanguages();
+
+        foreach ($coreMapping as $languageCode => $core) {
+            $context = GeneralUtility::makeInstance(
+                IndexingContext::class,
+                $core,
+                100,
+                0,
+                $languageCode,
+                $this->resolveLanguageUid((string) $languageCode, $languages),
+            );
+
+            foreach ($indexers as $indexer) {
+                $table = $indexer->getTableName();
+                if ($table === '') {
+                    continue;
+                }
+
+                foreach ($indexer->getRecordUidsForReindex($context) as $uid) {
+                    $indexQueueRepository->enqueue($table, $uid, IndexQueueRepository::OPERATION_INDEX);
+                    $enqueued++;
+                }
+            }
+        }
+
+        return $enqueued;
     }
 
     /**
