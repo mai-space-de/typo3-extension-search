@@ -34,6 +34,8 @@ final class CustomEmbeddingProvider extends AbstractEmbeddingProvider
     public function embed(string $text): array
     {
         if ($this->url === '') {
+            $this->logger?->debug('Custom embedding provider is not configured (missing endpoint URL)');
+
             return [];
         }
 
@@ -46,14 +48,21 @@ final class CustomEmbeddingProvider extends AbstractEmbeddingProvider
 
         $response = $this->requestFactory->request($this->url, 'POST', ['headers' => $headers, 'body' => $body]);
 
-        if ($response->getStatusCode() !== 200) {
-            throw new \RuntimeException(sprintf('Custom embeddings endpoint error (HTTP %d)', $response->getStatusCode()));
-        }
+        $this->assertSuccessful($response);
 
         $data = json_decode($response->getBody()->getContents(), true, 512, JSON_THROW_ON_ERROR);
         $embedding = $this->extractByPath($data, $this->responsePath);
 
-        return is_array($embedding) ? $embedding : [];
+        if (!is_array($embedding)) {
+            $this->logger?->warning(
+                'Custom embedding provider response did not contain an array at path "{path}"',
+                ['path' => $this->responsePath],
+            );
+
+            return [];
+        }
+
+        return $embedding;
     }
 
     public function getDimensions(): int

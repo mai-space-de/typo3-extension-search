@@ -23,9 +23,10 @@ final class OpenAiChatProviderTest extends TestCase
         $this->requestFactory = $this->createMock(RequestFactory::class);
     }
 
-    private function sseResponse(string $sse): ResponseInterface&MockObject
+    private function sseResponse(string $sse, int $statusCode = 200): ResponseInterface&MockObject
     {
         $response = $this->createMock(ResponseInterface::class);
+        $response->method('getStatusCode')->willReturn($statusCode);
         $response->method('getBody')->willReturn(Utils::streamFor($sse));
 
         return $response;
@@ -109,5 +110,16 @@ final class OpenAiChatProviderTest extends TestCase
 
         $provider = new OpenAiChatProvider($this->requestFactory, 'sk-test');
         iterator_to_array($provider->stream(new ChatRequest([new ChatMessage('user', 'Hi')], model: 'gpt-4o')));
+    }
+
+    #[Test]
+    public function streamThrowsOnErrorStatusInsteadOfYieldingEmptyAnswer(): void
+    {
+        $this->requestFactory->method('request')->willReturn($this->sseResponse('{"error":"unauthorized"}', 401));
+
+        $provider = new OpenAiChatProvider($this->requestFactory, 'sk-test');
+
+        $this->expectException(\RuntimeException::class);
+        iterator_to_array($provider->stream(new ChatRequest([new ChatMessage('user', 'Hi')])));
     }
 }

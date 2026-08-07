@@ -23,9 +23,10 @@ final class CustomChatProviderTest extends TestCase
         $this->requestFactory = $this->createMock(RequestFactory::class);
     }
 
-    private function sseResponse(string $sse): ResponseInterface&MockObject
+    private function sseResponse(string $sse, int $statusCode = 200): ResponseInterface&MockObject
     {
         $response = $this->createMock(ResponseInterface::class);
+        $response->method('getStatusCode')->willReturn($statusCode);
         $response->method('getBody')->willReturn(Utils::streamFor($sse));
 
         return $response;
@@ -81,5 +82,16 @@ final class CustomChatProviderTest extends TestCase
         $tokens = iterator_to_array($provider->stream(new ChatRequest([new ChatMessage('user', 'Hi')])));
 
         self::assertSame(['ok'], $tokens);
+    }
+
+    #[Test]
+    public function streamThrowsOnErrorStatusInsteadOfYieldingEmptyAnswer(): void
+    {
+        $this->requestFactory->method('request')->willReturn($this->sseResponse('{"error":"bad gateway"}', 502));
+
+        $provider = new CustomChatProvider($this->requestFactory, 'https://chat.example.com');
+
+        $this->expectException(\RuntimeException::class);
+        iterator_to_array($provider->stream(new ChatRequest([new ChatMessage('user', 'Hi')])));
     }
 }

@@ -23,9 +23,10 @@ final class OllamaChatProviderTest extends TestCase
         $this->requestFactory = $this->createMock(RequestFactory::class);
     }
 
-    private function ndjsonResponse(string $ndjson): ResponseInterface&MockObject
+    private function ndjsonResponse(string $ndjson, int $statusCode = 200): ResponseInterface&MockObject
     {
         $response = $this->createMock(ResponseInterface::class);
+        $response->method('getStatusCode')->willReturn($statusCode);
         $response->method('getBody')->willReturn(Utils::streamFor($ndjson));
 
         return $response;
@@ -78,5 +79,16 @@ final class OllamaChatProviderTest extends TestCase
         $response = $provider->complete(new ChatRequest([new ChatMessage('user', 'Hi')]));
 
         self::assertSame('foobar', $response->content);
+    }
+
+    #[Test]
+    public function streamThrowsOnErrorStatusInsteadOfYieldingEmptyAnswer(): void
+    {
+        $this->requestFactory->method('request')->willReturn($this->ndjsonResponse('{"error":"model not found"}', 404));
+
+        $provider = new OllamaChatProvider($this->requestFactory);
+
+        $this->expectException(\RuntimeException::class);
+        iterator_to_array($provider->stream(new ChatRequest([new ChatMessage('user', 'Hi')])));
     }
 }

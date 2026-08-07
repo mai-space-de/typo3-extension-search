@@ -35,6 +35,8 @@ final class OllamaChatProvider extends AbstractChatProvider
             ],
         );
 
+        $this->assertSuccessful($response);
+
         yield from $this->streamNdjson($response);
     }
 

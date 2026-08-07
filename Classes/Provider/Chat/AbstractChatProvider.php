@@ -9,6 +9,8 @@ use Maispace\MaiSearch\Domain\Model\ChatResponse;
 use Maispace\MaiSearch\Domain\Service\StreamingChatProviderInterface;
 use Maispace\MaiSearch\Support\ExtractsResponsePath;
 use Psr\Http\Message\ResponseInterface;
+use Psr\Log\LoggerAwareInterface;
+use Psr\Log\LoggerAwareTrait;
 use TYPO3\CMS\Core\Http\RequestFactory;
 
 /**
@@ -16,9 +18,10 @@ use TYPO3\CMS\Core\Http\RequestFactory;
  * need to build the request and pick a wire format (SSE for OpenAI-compatible
  * APIs, NDJSON for Ollama) — complete() is derived from stream() for free.
  */
-abstract class AbstractChatProvider implements StreamingChatProviderInterface
+abstract class AbstractChatProvider implements StreamingChatProviderInterface, LoggerAwareInterface
 {
     use ExtractsResponsePath;
+    use LoggerAwareTrait;
 
     public function __construct(protected readonly RequestFactory $requestFactory) {}
 
@@ -30,6 +33,30 @@ abstract class AbstractChatProvider implements StreamingChatProviderInterface
         }
 
         return new ChatResponse($answer);
+    }
+
+    /**
+     * The request options pass `stream: true` to avoid buffering the body, but the
+     * status line and headers are already available by the time request() returns —
+     * so a failed call (auth error, rate limit, ...) can be caught here before its
+     * error body is fed to the SSE/NDJSON parser, which would otherwise just yield no
+     * tokens and produce a silently empty answer.
+     *
+     * @throws \RuntimeException when the response status is not successful; logged
+     *   before throwing.
+     */
+    protected function assertSuccessful(ResponseInterface $response): void
+    {
+        $statusCode = $response->getStatusCode();
+
+        if ($statusCode >= 300) {
+            $this->logger?->error(
+                '{provider} chat completions API returned HTTP {status}',
+                ['provider' => $this->getIdentifier(), 'status' => $statusCode],
+            );
+
+            throw new \RuntimeException(sprintf('%s chat completions API error (HTTP %d)', $this->getIdentifier(), $statusCode));
+        }
     }
 
     /**

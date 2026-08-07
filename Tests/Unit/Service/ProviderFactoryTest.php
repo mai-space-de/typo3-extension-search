@@ -150,6 +150,62 @@ class ProviderFactoryTest extends TestCase
     }
 
     #[Test]
+    public function getOpenAiApiKeyReturnsConfiguredValue(): void
+    {
+        $factory = $this->createFactory(['openai' => ['apiKey' => 'sk-test']]);
+
+        self::assertSame('sk-test', $factory->getOpenAiApiKey());
+    }
+
+    #[Test]
+    public function getOpenAiApiKeyDefaultsToEmptyString(): void
+    {
+        self::assertSame('', $this->createFactory([])->getOpenAiApiKey());
+    }
+
+    #[Test]
+    public function getOllamaBaseUrlDefaultsToLocalhost(): void
+    {
+        self::assertSame('http://localhost:11434', $this->createFactory([])->getOllamaBaseUrl());
+    }
+
+    #[Test]
+    public function getOllamaBaseUrlReturnsConfiguredValue(): void
+    {
+        $factory = $this->createFactory(['ollama' => ['baseUrl' => 'http://ollama.local:11434']]);
+
+        self::assertSame('http://ollama.local:11434', $factory->getOllamaBaseUrl());
+    }
+
+    #[Test]
+    public function getCustomEmbeddingUrlDefaultsToEmptyString(): void
+    {
+        self::assertSame('', $this->createFactory([])->getCustomEmbeddingUrl());
+    }
+
+    #[Test]
+    public function getCustomEmbeddingUrlReturnsConfiguredValue(): void
+    {
+        $factory = $this->createFactory(['custom' => ['embeddingUrl' => 'https://embed.example.com']]);
+
+        self::assertSame('https://embed.example.com', $factory->getCustomEmbeddingUrl());
+    }
+
+    #[Test]
+    public function getCustomChatUrlDefaultsToEmptyString(): void
+    {
+        self::assertSame('', $this->createFactory([])->getCustomChatUrl());
+    }
+
+    #[Test]
+    public function getCustomChatUrlReturnsConfiguredValue(): void
+    {
+        $factory = $this->createFactory(['custom' => ['chatUrl' => 'https://chat.example.com']]);
+
+        self::assertSame('https://chat.example.com', $factory->getCustomChatUrl());
+    }
+
+    #[Test]
     public function fallsBackToEmptySettingsWhenExtensionConfigurationThrows(): void
     {
         $extensionConfiguration = $this->createMock(ExtensionConfiguration::class);

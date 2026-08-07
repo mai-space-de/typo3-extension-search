@@ -115,6 +115,24 @@ final class IndexManagementServiceTest extends TestCase
     }
 
     #[Test]
+    public function addDocumentDoesNotFailWhenEmbeddingProviderThrows(): void
+    {
+        $embeddingProvider = $this->createMock(EmbeddingProviderInterface::class);
+        $embeddingProvider->method('getMaxInputTokens')->willReturn(8191);
+        $embeddingProvider->method('embed')->willThrowException(new \RuntimeException('provider unreachable'));
+
+        $providerRegistry = $this->createMock(ProviderRegistry::class);
+        $providerRegistry->method('getActiveEmbeddingProvider')->willReturn($embeddingProvider);
+
+        $service = new IndexManagementService($this->connectionFactory, $providerRegistry);
+        $document = $this->createDocumentWithContent('Test content');
+
+        $service->addDocument($document);
+
+        self::assertArrayNotHasKey(SchemaManager::VECTOR_FIELD_NAME, $document->getFields());
+    }
+
+    #[Test]
     public function deleteRecordDeletesByIdQuery(): void
     {
         $this->solrClient

@@ -633,6 +633,80 @@ Turns SPEC-v1's deferred "v2" into something concretely buildable now.
       the current `SolrBackend` design — flag as backend-specific, not a shared
       capability.
 
+#### Phase 7 addendum — lessons from `.lookup/smart-search` (2026-08-07)
+
+`.lookup/smart-search` (`boehmmatthias/smart_search`) is a separate, independently
+developed TYPO3 v14 extension solving the same "pluggable embedding/chat provider"
+problem `mai_search`'s `ProviderRegistry` layer solves. It owns its own vector
+store (packed float32 blobs, `VectorRepository`), which `mai_search` deliberately
+does not — vectors here live in Solr's KNN field / Meilisearch, so none of
+`smart_search`'s storage/codec/metadata-filter code applies. What *does* transfer
+is the provider/RAG layer, audited against `mai_search`'s actual code (not assumed):
+
+- [x] **PSR-3 logging in the provider layer.** Confirmed zero logging existed in
+      `Provider/Embedding/*`, `Provider/Chat/*`, or `ProviderRegistry`, and
+      `IndexManagementService::addEmbeddingToDocument()`'s failure path was a bare
+      `catch (\Throwable) {}` — a persistently down/misconfigured provider produced
+      vector-less documents forever with no trace. Fixed: `AbstractEmbeddingProvider`
+      and `AbstractChatProvider` now implement `LoggerAwareInterface` (TYPO3's
+      `LoggerAwarePass` auto-injects a channel-named logger, same convention as
+      `IndexedSearchBackend`); each concrete provider logs before throwing on a
+      non-2xx response, and logs (rather than silently returning `[]`) when
+      unconfigured. `IndexManagementService`'s catch block now logs a warning
+      with the document id and exception message instead of swallowing silently.
+  - **Bug fixed in passing:** the three concrete `Chat` providers
+        (`OpenAiChatProvider`, `OllamaChatProvider`, `CustomChatProvider`) never
+        checked the HTTP status code before streaming — an auth failure or rate
+        limit produced an error-JSON body that the SSE/NDJSON parser silently
+        yielded zero tokens from, so `complete()` returned an *empty string*
+        answer with no exception and nothing in the logs. `AbstractChatProvider`
+        gained the same `assertSuccessful()` status check the embedding providers
+        already had (status is available on the response object before the body
+        is read, even with `'stream' => true`); all three now throw
+        `\RuntimeException` on a non-2xx response, matching the embedding side.
+  - `CustomEmbeddingProvider` also now logs+returns `[]` (instead of silently
+        returning `[]`) when the configured response path doesn't resolve to an
+        array — the "vector of the wrong shape masquerading as a valid empty
+        result" class of bug `smart_search`'s changelog flags repeatedly.
+- [x] **Provider-availability health check.** No equivalent to `smart_search`'s
+      `ModelAvailabilityService` existed — only `SolrHealthWidget` (Solr-only).
+      Added `Service/ProviderAvailabilityService` (`isEmbeddingProviderAvailable()`
+      / `isChatProviderAvailable()`), following whichever provider identifier is
+      actually active per concern: OpenAI reports available iff an API key is
+      configured (no network call — no free health endpoint, and a billable probe
+      has no place in a page render); the "custom" REST-template provider reports
+      available iff its endpoint URL is configured (no network call — no known
+      health-check shape for an arbitrary user-supplied endpoint, unlike
+      `smart_search`'s fixed llama.cpp/Ollama/OpenAI set); Ollama is probed at
+      `/api/tags` with a 2s timeout, never throws, and is cached for the instance's
+      lifetime. Registered public in `Services.yaml` so a future consumer (the
+      frontend RAG toggle, or the Phase 5 health module below) can autowire it
+      without further wiring. Not yet wired into anything — this phase item is
+      "the service exists and is tested," not "the RAG toggle hides itself."
+- [ ] **Not done, deliberately deferred — real, separate scope decisions:**
+  - Multi-turn conversation support (`smart_search`'s `ConversationHistory`
+        value object) for `SearchSynthesisService`, currently single-shot only.
+  - Wiring the already-ported-but-unused `StreamingChatProviderInterface` into
+        `SearchSynthesisService` (this phase's existing streaming-synthesis item,
+        above — `smart_search`'s `generateStream()` is a usable reference).
+  - A reranking step (`smart_search`'s `RerankerInterface`/`LlmReranker`) between
+        retrieval and synthesis. Worth inheriting their lesson directly if built:
+        their reranker originally overwrote `score` with a rank-derived value,
+        which silently broke a downstream threshold filter — reorder without
+        touching `score`.
+  - `mai-search:cleanup`-equivalent orphan detection (`smart_search`'s
+        `smartsearch:cleanup` + `OrphanProviderInterface`, refuses to act on a
+        suspiciously empty live-identifier list unless `--allow-empty`). Nothing
+        in `mai_search` currently catches documents left behind by hard deletes,
+        disabled extensions, or migration errors outside the `DataHandlerHook` path.
+  - Reviving `ContentChunkerService` (confirmed still dead/unwired code) using
+        `smart_search`'s `ParagraphChunker`/`SlidingWindowChunker` as a better
+        starting point than the current unvalidated sliding-window-only version —
+        only relevant once/if the chunk-index RAG upgrade above actually happens.
+  - Not transferable at all: vector storage/codec (`mai_search` doesn't own
+        vector storage), metadata strict-equality filtering, and RRF hybrid-search
+        fusion (Solr/Meilisearch already own equivalent ranking natively).
+
 ### Phase 8 — Frontend/UX quality-of-life (P3)
 
 - [ ] Live search suggestions/autocomplete (already noted as optional in

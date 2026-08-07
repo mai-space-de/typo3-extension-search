@@ -39,9 +39,7 @@ final class OllamaEmbeddingProvider extends AbstractEmbeddingProvider
             ],
         );
 
-        if ($response->getStatusCode() !== 200) {
-            throw new \RuntimeException(sprintf('Ollama embeddings API error (HTTP %d)', $response->getStatusCode()));
-        }
+        $this->assertSuccessful($response);
 
         $data = json_decode($response->getBody()->getContents(), true, 512, JSON_THROW_ON_ERROR);
 

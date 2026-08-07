@@ -33,6 +33,8 @@ final class OpenAiChatProvider extends AbstractChatProvider
             'stream' => true,
         ]);
 
+        $this->assertSuccessful($response);
+
         yield from $this->streamSse($response);
     }
 

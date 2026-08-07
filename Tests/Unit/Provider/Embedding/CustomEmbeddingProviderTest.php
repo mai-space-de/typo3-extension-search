@@ -89,6 +89,22 @@ final class CustomEmbeddingProviderTest extends TestCase
     }
 
     #[Test]
+    public function embedReturnsEmptyArrayWhenResponsePathIsNotAnArray(): void
+    {
+        $this->requestFactory
+            ->method('request')
+            ->willReturn($this->makeResponseMock(200, json_encode(['result' => ['vector' => 'not-an-array']], JSON_THROW_ON_ERROR)));
+
+        $provider = new CustomEmbeddingProvider(
+            $this->requestFactory,
+            'https://embed.example.com',
+            responsePath: 'result.vector',
+        );
+
+        self::assertSame([], $provider->embed('text'));
+    }
+
+    #[Test]
     public function getMaxInputTokensReturnsConfiguredValue(): void
     {
         $provider = new CustomEmbeddingProvider($this->requestFactory, 'https://embed.example.com', maxInputTokens: 4096);

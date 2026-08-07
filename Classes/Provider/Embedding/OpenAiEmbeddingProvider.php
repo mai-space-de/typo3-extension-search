@@ -32,7 +32,13 @@ final class OpenAiEmbeddingProvider extends AbstractEmbeddingProvider
 
     public function embedBatch(array $texts): array
     {
-        if ($texts === [] || $this->apiKey === '') {
+        if ($texts === []) {
+            return [];
+        }
+
+        if ($this->apiKey === '') {
+            $this->logger?->debug('OpenAI embedding provider is not configured (missing API key)');
+
             return [];
         }
 
@@ -44,9 +50,7 @@ final class OpenAiEmbeddingProvider extends AbstractEmbeddingProvider
             'body' => json_encode(['model' => $this->model, 'input' => $texts], JSON_THROW_ON_ERROR),
         ]);
 
-        if ($response->getStatusCode() !== 200) {
-            throw new \RuntimeException(sprintf('OpenAI embeddings API error (HTTP %d)', $response->getStatusCode()));
-        }
+        $this->assertSuccessful($response);
 
         $data = json_decode($response->getBody()->getContents(), true, 512, JSON_THROW_ON_ERROR);
 

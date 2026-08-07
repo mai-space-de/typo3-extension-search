@@ -11,12 +11,16 @@ use Maispace\MaiSearch\Domain\Solr\SchemaManager;
 use Maispace\MaiSearch\Domain\Solr\SearchQuery;
 use Maispace\MaiSearch\Service\IndexerRegistry;
 use Maispace\MaiSearch\Service\ProviderRegistry;
+use Psr\Log\LoggerAwareInterface;
+use Psr\Log\LoggerAwareTrait;
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
-class IndexManagementService implements SingletonInterface
+class IndexManagementService implements SingletonInterface, LoggerAwareInterface
 {
+    use LoggerAwareTrait;
+
     private const float TOKENS_PER_CHAR = 0.25;
 
     public function __construct(
@@ -246,8 +250,15 @@ class IndexManagementService implements SingletonInterface
             if ($vector !== []) {
                 $document->setField(SchemaManager::VECTOR_FIELD_NAME, $vector);
             }
-        } catch (\Throwable) {
-            // Transient embedding failures must not break indexing
+        } catch (\Throwable $e) {
+            // Transient embedding failures must not break indexing — but the failure
+            // must not vanish silently either, or a persistently misconfigured/down
+            // provider produces vector-less documents forever with nothing in the logs
+            // to explain why.
+            $this->logger?->warning(
+                'Embedding request failed while indexing document "{id}"; it will be stored without a vector field: {message}',
+                ['id' => $document->getFields()['id'] ?? 'unknown', 'message' => $e->getMessage(), 'exception' => $e],
+            );
         }
     }
 }

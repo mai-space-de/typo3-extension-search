@@ -103,4 +103,24 @@ class ProviderFactory
     {
         return (string) ($this->settings['chatProvider'] ?? 'openai');
     }
+
+    public function getOpenAiApiKey(): string
+    {
+        return (string) ($this->settings['openai']['apiKey'] ?? '');
+    }
+
+    public function getOllamaBaseUrl(): string
+    {
+        return (string) ($this->settings['ollama']['baseUrl'] ?? 'http://localhost:11434');
+    }
+
+    public function getCustomEmbeddingUrl(): string
+    {
+        return (string) ($this->settings['custom']['embeddingUrl'] ?? '');
+    }
+
+    public function getCustomChatUrl(): string
+    {
+        return (string) ($this->settings['custom']['chatUrl'] ?? '');
+    }
 }

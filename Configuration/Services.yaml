@@ -40,6 +40,9 @@ services:
   Maispace\MaiSearch\Service\ProviderRegistry:
     public: true
 
+  Maispace\MaiSearch\Service\ProviderAvailabilityService:
+    public: true
+
   # Providers are built from Extension Configuration via ProviderFactory rather
   # than autowired directly, so their constructor args (API keys, base URLs,
   # models) stay out of the DI graph.

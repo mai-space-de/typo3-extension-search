@@ -41,6 +41,8 @@ final class CustomChatProvider extends AbstractChatProvider
             'stream' => true,
         ]);
 
+        $this->assertSuccessful($response);
+
         yield from $this->streamSse($response);
     }
 
