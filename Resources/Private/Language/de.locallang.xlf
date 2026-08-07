@@ -35,6 +35,42 @@
                 <source>All</source>
                 <target>Alle</target>
             </trans-unit>
+            <trans-unit id="search.type.page">
+                <source>Page</source>
+                <target>Seite</target>
+            </trans-unit>
+            <trans-unit id="search.type.member">
+                <source>Member</source>
+                <target>Mitglied</target>
+            </trans-unit>
+            <trans-unit id="search.type.jobs">
+                <source>Job</source>
+                <target>Stellenangebot</target>
+            </trans-unit>
+            <trans-unit id="search.type.events">
+                <source>Event</source>
+                <target>Veranstaltung</target>
+            </trans-unit>
+            <trans-unit id="search.type.gallery">
+                <source>Gallery</source>
+                <target>Galerie</target>
+            </trans-unit>
+            <trans-unit id="search.type.location">
+                <source>Location</source>
+                <target>Standort</target>
+            </trans-unit>
+            <trans-unit id="search.type.news">
+                <source>News</source>
+                <target>Neuigkeit</target>
+            </trans-unit>
+            <trans-unit id="search.type.testimonial">
+                <source>Testimonial</source>
+                <target>Erfahrungsbericht</target>
+            </trans-unit>
+            <trans-unit id="search.type.timeline">
+                <source>Timeline entry</source>
+                <target>Zeitleisten-Eintrag</target>
+            </trans-unit>
             <trans-unit id="search.pagination.label">
                 <source>Search results pages</source>
                 <target>Seiten der Suchergebnisse</target>

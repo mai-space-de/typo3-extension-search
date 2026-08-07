@@ -27,6 +27,33 @@
             <trans-unit id="search.filters.all">
                 <source>All</source>
             </trans-unit>
+            <trans-unit id="search.type.page">
+                <source>Page</source>
+            </trans-unit>
+            <trans-unit id="search.type.member">
+                <source>Member</source>
+            </trans-unit>
+            <trans-unit id="search.type.jobs">
+                <source>Job</source>
+            </trans-unit>
+            <trans-unit id="search.type.events">
+                <source>Event</source>
+            </trans-unit>
+            <trans-unit id="search.type.gallery">
+                <source>Gallery</source>
+            </trans-unit>
+            <trans-unit id="search.type.location">
+                <source>Location</source>
+            </trans-unit>
+            <trans-unit id="search.type.news">
+                <source>News</source>
+            </trans-unit>
+            <trans-unit id="search.type.testimonial">
+                <source>Testimonial</source>
+            </trans-unit>
+            <trans-unit id="search.type.timeline">
+                <source>Timeline entry</source>
+            </trans-unit>
             <trans-unit id="search.pagination.label">
                 <source>Search results pages</source>
             </trans-unit>
