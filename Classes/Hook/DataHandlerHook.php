@@ -4,44 +4,40 @@ declare(strict_types=1);
 
 namespace Maispace\MaiSearch\Hook;
 
-use Maispace\MaiSearch\Domain\Model\IndexingContext;
 use Maispace\MaiSearch\Service\IndexerRegistry;
+use Maispace\MaiSearch\Service\IndexQueueRepository;
 use Psr\Log\LoggerInterface;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
-use TYPO3\CMS\Core\Database\Connection;
-use TYPO3\CMS\Core\Database\ConnectionPool;
-use TYPO3\CMS\Core\Messaging\FlashMessage;
-use TYPO3\CMS\Core\Messaging\FlashMessageService;
-use TYPO3\CMS\Core\Site\SiteFinder;
-use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
- * DataHandler hook for incremental Solr index updates.
+ * DataHandler hook for the async search index queue.
  *
  * Hooks:
- *   processDatamap_afterDatabaseOperations — re-index the record after save.
- *   processCmdmap_deleteAction             — remove the document from Solr on delete.
+ *   processDatamap_afterDatabaseOperations — enqueue an index job for the saved record.
+ *   processCmdmap_deleteAction             — enqueue a removal job for the deleted record.
  *
- * Solr connectivity failures must never abort the DataHandler save/delete —
- * they are logged and surfaced as a backend flash message at most.
+ * Indexing itself no longer happens here (see IndexQueueProcessor, run via the
+ * IndexQueueProcessingTask scheduler task): a page save must not block on
+ * Solr/Meilisearch latency or downtime, and a real, durable, admin-visible
+ * queue (the backend Queue view) is a better home for indexing failures than
+ * a one-off flash message the editor may never see.
  */
 class DataHandlerHook
 {
     private readonly IndexerRegistry $indexerRegistry;
 
-    private readonly SiteFinder $siteFinder;
+    private readonly IndexQueueRepository $indexQueueRepository;
 
     public function __construct(
         ?IndexerRegistry $indexerRegistry = null,
-        private readonly ?FlashMessageService $flashMessageService = null,
+        ?IndexQueueRepository $indexQueueRepository = null,
         private readonly ?LoggerInterface $logger = null,
-        ?SiteFinder $siteFinder = null,
     ) {
         $this->indexerRegistry = $indexerRegistry
             ?? GeneralUtility::makeInstance(IndexerRegistry::class);
-        $this->siteFinder = $siteFinder
-            ?? GeneralUtility::makeInstance(SiteFinder::class);
+        $this->indexQueueRepository = $indexQueueRepository
+            ?? GeneralUtility::makeInstance(IndexQueueRepository::class);
     }
 
     /**
@@ -76,28 +72,7 @@ class DataHandlerHook
             return;
         }
 
-        $record = $this->fetchRecord($table, $uid);
-        if ($record === null) {
-            return;
-        }
-
-        $languageUid = isset($record->sys_language_uid) ? (int) $record->sys_language_uid : 0;
-        $languageCode = $this->resolveLanguageCode($languageUid);
-
-        try {
-            $indexer->indexRecord($record, new IndexingContext(
-                core: '',
-                languageCode: $languageCode,
-                languageUid: $languageUid,
-            ));
-        } catch (\Throwable $exception) {
-            $this->handleIndexingFailure(
-                'index',
-                $table,
-                $uid,
-                $exception,
-            );
-        }
+        $this->enqueue($table, $uid, IndexQueueRepository::OPERATION_INDEX);
     }
 
     /**
@@ -121,137 +96,24 @@ class DataHandlerHook
             return;
         }
 
+        $this->enqueue($table, $id, IndexQueueRepository::OPERATION_REMOVE);
+    }
+
+    private function enqueue(string $table, int $uid, string $operation): void
+    {
         try {
-            $indexer->removeRecord($id, $table);
+            $this->indexQueueRepository->enqueue($table, $uid, $operation);
         } catch (\Throwable $exception) {
-            $this->handleIndexingFailure(
-                'remove',
-                $table,
-                $id,
-                $exception,
+            $this->logger?->warning(
+                'Could not enqueue {operation} job for {table}:{uid}: {message}',
+                [
+                    'operation' => $operation,
+                    'table' => $table,
+                    'uid' => $uid,
+                    'message' => $exception->getMessage(),
+                    'exception' => $exception,
+                ],
             );
         }
-    }
-
-    /**
-     * Fetch a single record as \stdClass (without TYPO3 restriction overlay so that
-     * hidden/deleted records are still re-indexed correctly from the DataHandler context).
-     */
-    private function fetchRecord(string $table, int $uid): ?\stdClass
-    {
-        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
-            ->getQueryBuilderForTable($table);
-
-        // Remove default restrictions — DataHandler already applied access checks.
-        $queryBuilder->getRestrictions()->removeAll();
-
-        $row = $queryBuilder
-            ->select('*')
-            ->from($table)
-            ->where(
-                $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($uid, Connection::PARAM_INT)),
-            )
-            ->executeQuery()
-            ->fetchAssociative();
-
-        if ($row === false) {
-            return null;
-        }
-
-        $obj = new \stdClass();
-        foreach ($row as $key => $value) {
-            $obj->$key = $value;
-        }
-
-        return $obj;
-    }
-
-    /**
-     * Resolve the ISO 639-1 code for a sys_language_uid via the site's configured languages,
-     * so incremental re-index-on-save routes to the same core as a full reindex.
-     */
-    private function resolveLanguageCode(int $languageUid): ?string
-    {
-        try {
-            $sites = $this->siteFinder->getAllSites();
-        } catch (\Throwable) {
-            return null;
-        }
-
-        $site = reset($sites);
-
-        if ($site === false) {
-            return null;
-        }
-
-        foreach ($site->getLanguages() as $language) {
-            if ($language->getLanguageId() === $languageUid) {
-                return $language->getLocale()->getLanguageCode();
-            }
-        }
-
-        return null;
-    }
-
-    private function handleIndexingFailure(
-        string $operation,
-        string $table,
-        int $uid,
-        \Throwable $exception,
-    ): void {
-        $this->logger?->warning(
-            'Solr {operation} failed for {table}:{uid}: {message}',
-            [
-                'operation' => $operation,
-                'table' => $table,
-                'uid' => $uid,
-                'message' => $exception->getMessage(),
-                'exception' => $exception,
-            ],
-        );
-
-        $title = $this->translate('hook.indexingFailed.title');
-        $message = sprintf(
-            $this->translate('hook.indexingFailed.message'),
-            $table,
-            $uid,
-            $exception->getMessage(),
-        );
-
-        $this->enqueueFlashMessage($message, $title);
-    }
-
-    private function enqueueFlashMessage(string $message, string $title): void
-    {
-        $flashMessageService = $this->flashMessageService
-            ?? GeneralUtility::makeInstance(FlashMessageService::class);
-
-        $flashMessage = GeneralUtility::makeInstance(
-            FlashMessage::class,
-            $message,
-            $title,
-            ContextualFeedbackSeverity::WARNING,
-            true,
-        );
-
-        $flashMessageService->getMessageQueueByIdentifier()->enqueue($flashMessage);
-    }
-
-    private function translate(string $key): string
-    {
-        $label = 'LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:' . $key;
-
-        if (isset($GLOBALS['LANG']) && is_object($GLOBALS['LANG']) && method_exists($GLOBALS['LANG'], 'sL')) {
-            $translated = (string) $GLOBALS['LANG']->sL($label);
-            if ($translated !== '' && $translated !== $label) {
-                return $translated;
-            }
-        }
-
-        return match ($key) {
-            'hook.indexingFailed.title' => 'Search index update failed',
-            'hook.indexingFailed.message' => 'The record was saved, but Solr indexing failed for %s:%d (%s).',
-            default => $key,
-        };
     }
 }

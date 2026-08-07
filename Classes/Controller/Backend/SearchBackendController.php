@@ -7,9 +7,11 @@ namespace Maispace\MaiSearch\Controller\Backend;
 use Maispace\MaiBase\Controller\Backend\AbstractBackendController;
 use Maispace\MaiBase\Controller\Traits\ResponseHelpersTrait;
 use Maispace\MaiSearch\Domain\Service\IndexManagementService;
+use Maispace\MaiSearch\Domain\Service\IndexQueueProcessor;
 use Maispace\MaiSearch\Domain\Service\ProvisioningService;
 use Maispace\MaiSearch\Domain\Solr\ConnectionFactory;
 use Maispace\MaiSearch\Service\IndexerRegistry;
+use Maispace\MaiSearch\Service\IndexQueueRepository;
 use Psr\Http\Message\ResponseInterface;
 use TYPO3\CMS\Backend\Attribute\AsController;
 use TYPO3\CMS\Backend\Template\ModuleTemplateFactory;
@@ -27,6 +29,8 @@ class SearchBackendController extends AbstractBackendController
         private readonly ConnectionFactory $connectionFactory,
         private readonly IndexerRegistry $indexerRegistry,
         private readonly ProvisioningService $provisioningService,
+        private readonly IndexQueueRepository $indexQueueRepository,
+        private readonly IndexQueueProcessor $indexQueueProcessor,
     ) {
         parent::__construct($moduleTemplateFactory, $iconFactory);
     }
@@ -126,5 +130,62 @@ class SearchBackendController extends AbstractBackendController
         }
 
         return $this->redirect('index');
+    }
+
+    public function queueAction(): ResponseInterface
+    {
+        $moduleTemplate = $this->createModuleTemplate();
+        $this->addShortcutButton(
+            $moduleTemplate,
+            'mai_search',
+            'Search Index Queue',
+        );
+
+        $this->assignMultiple($moduleTemplate, [
+            'counts' => $this->indexQueueRepository->countByStatus(),
+            'jobs' => $this->formatJobsForDisplay($this->indexQueueRepository->findRecent(50)),
+        ]);
+
+        return $this->renderModuleResponse($moduleTemplate, 'Queue');
+    }
+
+    public function processQueueAction(): ResponseInterface
+    {
+        try {
+            $processed = $this->indexQueueProcessor->processBatch();
+
+            if ($processed > 0) {
+                $this->flashSuccess(sprintf('Processed %d queue item(s).', $processed));
+            } else {
+                $this->flashSuccess('Queue is empty, nothing to process.');
+            }
+        } catch (\Throwable $e) {
+            $this->flashError(
+                sprintf('Queue processing failed: %s', $e->getMessage()),
+            );
+        }
+
+        return $this->redirect('queue');
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $jobs
+     * @return list<array{uid: int, tableName: string, recordUid: int, operation: string, status: string, errorMessage: string, queuedDate: string, processedDate: string}>
+     */
+    private function formatJobsForDisplay(array $jobs): array
+    {
+        return array_map(
+            static fn(array $job): array => [
+                'uid' => (int) $job['uid'],
+                'tableName' => (string) $job['table_name'],
+                'recordUid' => (int) $job['record_uid'],
+                'operation' => (string) $job['operation'],
+                'status' => (string) $job['status'],
+                'errorMessage' => (string) $job['error_message'],
+                'queuedDate' => (int) $job['queued_date'] > 0 ? date('Y-m-d H:i:s', (int) $job['queued_date']) : '',
+                'processedDate' => (int) $job['processed_date'] > 0 ? date('Y-m-d H:i:s', (int) $job['processed_date']) : '',
+            ],
+            $jobs,
+        );
     }
 }

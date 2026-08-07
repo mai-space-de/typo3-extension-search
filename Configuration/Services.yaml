@@ -97,6 +97,9 @@ services:
   Maispace\MaiSearch\Scheduler\FullReindexTask:
     public: true
 
+  Maispace\MaiSearch\Scheduler\IndexQueueProcessingTask:
+    public: true
+
   # DataHandler instantiates hooks via GeneralUtility::makeInstance() — must be public for DI
   Maispace\MaiSearch\Hook\DataHandlerHook:
     public: true

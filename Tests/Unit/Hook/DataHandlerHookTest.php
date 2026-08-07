@@ -7,22 +7,16 @@ namespace Maispace\MaiSearch\Tests\Unit\Hook;
 use Maispace\MaiSearch\Domain\Service\SearchIndexerInterface;
 use Maispace\MaiSearch\Hook\DataHandlerHook;
 use Maispace\MaiSearch\Service\IndexerRegistry;
+use Maispace\MaiSearch\Service\IndexQueueRepository;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
-use TYPO3\CMS\Core\Messaging\FlashMessage;
-use TYPO3\CMS\Core\Messaging\FlashMessageQueue;
-use TYPO3\CMS\Core\Messaging\FlashMessageService;
-use TYPO3\CMS\Core\Site\SiteFinder;
-use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 
 final class DataHandlerHookTest extends TestCase
 {
-    private FlashMessageService&MockObject $flashMessageService;
-
-    private FlashMessageQueue&MockObject $flashMessageQueue;
+    private IndexQueueRepository&MockObject $indexQueueRepository;
 
     private LoggerInterface&MockObject $logger;
 
@@ -30,27 +24,13 @@ final class DataHandlerHookTest extends TestCase
     {
         parent::setUp();
 
-        $this->flashMessageQueue = $this->createMock(FlashMessageQueue::class);
-        $this->flashMessageService = $this->createMock(FlashMessageService::class);
-        $this->flashMessageService
-            ->method('getMessageQueueByIdentifier')
-            ->willReturn($this->flashMessageQueue);
+        $this->indexQueueRepository = $this->createMock(IndexQueueRepository::class);
         $this->logger = $this->createMock(LoggerInterface::class);
     }
 
     private function buildHook(IndexerRegistry $registry): DataHandlerHook
     {
-        // SiteFinder is readonly (cannot be mocked); an uninitialized instance is
-        // fine because resolveLanguageCode() catches the resulting access error
-        // and falls back to a null language code, same as "no site configured".
-        $siteFinder = new \ReflectionClass(SiteFinder::class)->newInstanceWithoutConstructor();
-
-        return new DataHandlerHook(
-            $registry,
-            $this->flashMessageService,
-            $this->logger,
-            $siteFinder,
-        );
+        return new DataHandlerHook($registry, $this->indexQueueRepository, $this->logger);
     }
 
     private function makeRegistry(?SearchIndexerInterface $indexer = null): IndexerRegistry
@@ -69,9 +49,13 @@ final class DataHandlerHookTest extends TestCase
         return $handler;
     }
 
+    // ─── processDatamap_afterDatabaseOperations ────────────────────────────
+
     #[Test]
     public function processDatamapDoesNothingWhenNoIndexerForTable(): void
     {
+        $this->indexQueueRepository->expects(self::never())->method('enqueue');
+
         $registry = $this->makeRegistry(null);
         $hook = $this->buildHook($registry);
 
@@ -82,16 +66,14 @@ final class DataHandlerHookTest extends TestCase
             [],
             $this->makeDataHandler(),
         );
-
-        $this->expectNotToPerformAssertions();
     }
 
     #[Test]
     public function processDatamapDoesNothingForZeroUid(): void
     {
-        $indexer = $this->createMock(SearchIndexerInterface::class);
-        $indexer->expects(self::never())->method('indexRecord');
+        $this->indexQueueRepository->expects(self::never())->method('enqueue');
 
+        $indexer = $this->createMock(SearchIndexerInterface::class);
         $registry = $this->makeRegistry($indexer);
         $hook = $this->buildHook($registry);
 
@@ -105,11 +87,11 @@ final class DataHandlerHookTest extends TestCase
     }
 
     #[Test]
-    public function processDatamapResolvesNewRecordUidFromSubstMap(): void
+    public function processDatamapDoesNothingWhenNewRecordUidIsUnresolvable(): void
     {
-        $indexer = $this->createMock(SearchIndexerInterface::class);
-        $indexer->expects(self::never())->method('indexRecord');
+        $this->indexQueueRepository->expects(self::never())->method('enqueue');
 
+        $indexer = $this->createMock(SearchIndexerInterface::class);
         $registry = $this->makeRegistry($indexer);
         $hook = $this->buildHook($registry);
 
@@ -123,8 +105,87 @@ final class DataHandlerHookTest extends TestCase
     }
 
     #[Test]
+    public function processDatamapEnqueuesAnIndexJobForAnUpdatedRecord(): void
+    {
+        $this->indexQueueRepository
+            ->expects(self::once())
+            ->method('enqueue')
+            ->with('pages', 42, IndexQueueRepository::OPERATION_INDEX);
+
+        $indexer = $this->createMock(SearchIndexerInterface::class);
+        $registry = $this->makeRegistry($indexer);
+        $hook = $this->buildHook($registry);
+
+        $hook->processDatamap_afterDatabaseOperations(
+            'update',
+            'pages',
+            42,
+            [],
+            $this->makeDataHandler(),
+        );
+    }
+
+    #[Test]
+    public function processDatamapResolvesNewRecordUidFromSubstMapAndEnqueues(): void
+    {
+        $this->indexQueueRepository
+            ->expects(self::once())
+            ->method('enqueue')
+            ->with('pages', 55, IndexQueueRepository::OPERATION_INDEX);
+
+        $indexer = $this->createMock(SearchIndexerInterface::class);
+        $registry = $this->makeRegistry($indexer);
+        $hook = $this->buildHook($registry);
+
+        $hook->processDatamap_afterDatabaseOperations(
+            'new',
+            'pages',
+            'NEW1234',
+            [],
+            $this->makeDataHandler(['NEW1234' => 55]),
+        );
+    }
+
+    #[Test]
+    public function processDatamapLogsWarningWhenEnqueueingThrows(): void
+    {
+        $this->indexQueueRepository
+            ->method('enqueue')
+            ->willThrowException(new \RuntimeException('DB is gone'));
+
+        $this->logger
+            ->expects(self::once())
+            ->method('warning')
+            ->with(
+                'Could not enqueue {operation} job for {table}:{uid}: {message}',
+                self::callback(static function (array $context): bool {
+                    return $context['operation'] === 'index'
+                        && $context['table'] === 'pages'
+                        && $context['uid'] === 42
+                        && str_contains((string) $context['message'], 'DB is gone');
+                }),
+            );
+
+        $indexer = $this->createMock(SearchIndexerInterface::class);
+        $registry = $this->makeRegistry($indexer);
+        $hook = $this->buildHook($registry);
+
+        $hook->processDatamap_afterDatabaseOperations(
+            'update',
+            'pages',
+            42,
+            [],
+            $this->makeDataHandler(),
+        );
+    }
+
+    // ─── processCmdmap_deleteAction ─────────────────────────────────────────
+
+    #[Test]
     public function processCmdmapDeleteDoesNothingWhenNoIndexerForTable(): void
     {
+        $this->indexQueueRepository->expects(self::never())->method('enqueue');
+
         $registry = $this->makeRegistry(null);
         $hook = $this->buildHook($registry);
 
@@ -136,16 +197,17 @@ final class DataHandlerHookTest extends TestCase
             $deleted,
             $this->makeDataHandler(),
         );
-
-        $this->expectNotToPerformAssertions();
     }
 
     #[Test]
-    public function processCmdmapDeleteCallsRemoveRecord(): void
+    public function processCmdmapDeleteEnqueuesARemoveJob(): void
     {
-        $indexer = $this->createMock(SearchIndexerInterface::class);
-        $indexer->expects(self::once())->method('removeRecord')->with(99, 'pages');
+        $this->indexQueueRepository
+            ->expects(self::once())
+            ->method('enqueue')
+            ->with('pages', 99, IndexQueueRepository::OPERATION_REMOVE);
 
+        $indexer = $this->createMock(SearchIndexerInterface::class);
         $registry = $this->makeRegistry($indexer);
         $hook = $this->buildHook($registry);
 
@@ -160,36 +222,25 @@ final class DataHandlerHookTest extends TestCase
     }
 
     #[Test]
-    public function processCmdmapDeleteSurfacesSolrFailureAsFlashMessage(): void
+    public function processCmdmapDeleteLogsWarningWhenEnqueueingThrows(): void
     {
-        $indexer = $this->createMock(SearchIndexerInterface::class);
-        $indexer
-            ->expects(self::once())
-            ->method('removeRecord')
-            ->willThrowException(new \RuntimeException('Solr HTTP error: Could not resolve host: solr (6)'));
+        $this->indexQueueRepository
+            ->method('enqueue')
+            ->willThrowException(new \RuntimeException('DB is gone'));
 
         $this->logger
             ->expects(self::once())
             ->method('warning')
             ->with(
-                'Solr {operation} failed for {table}:{uid}: {message}',
+                'Could not enqueue {operation} job for {table}:{uid}: {message}',
                 self::callback(static function (array $context): bool {
                     return $context['operation'] === 'remove'
                         && $context['table'] === 'pages'
-                        && $context['uid'] === 99
-                        && str_contains((string) $context['message'], 'Could not resolve host');
+                        && $context['uid'] === 99;
                 }),
             );
 
-        $this->flashMessageQueue
-            ->expects(self::once())
-            ->method('enqueue')
-            ->with(self::callback(static function (FlashMessage $message): bool {
-                return $message->getSeverity() === ContextualFeedbackSeverity::WARNING
-                    && str_contains($message->getMessage(), 'pages')
-                    && str_contains($message->getMessage(), '99');
-            }));
-
+        $indexer = $this->createMock(SearchIndexerInterface::class);
         $registry = $this->makeRegistry($indexer);
         $hook = $this->buildHook($registry);
 

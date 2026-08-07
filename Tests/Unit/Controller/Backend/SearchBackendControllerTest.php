@@ -6,9 +6,11 @@ namespace Maispace\MaiSearch\Tests\Unit\Controller\Backend;
 
 use Maispace\MaiSearch\Controller\Backend\SearchBackendController;
 use Maispace\MaiSearch\Domain\Service\IndexManagementService;
+use Maispace\MaiSearch\Domain\Service\IndexQueueProcessor;
 use Maispace\MaiSearch\Domain\Service\ProvisioningService;
 use Maispace\MaiSearch\Domain\Solr\ConnectionFactory;
 use Maispace\MaiSearch\Service\IndexerRegistry;
+use Maispace\MaiSearch\Service\IndexQueueRepository;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
@@ -135,6 +137,86 @@ final class SearchBackendControllerTest extends TestCase
 
         self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
         self::assertSame(ResponseInterface::class, $returnType->getName());
+    }
+
+    #[Test]
+    public function controllerHasIndexQueueRepositoryDependency(): void
+    {
+        $params = (new \ReflectionMethod(SearchBackendController::class, '__construct'))
+            ->getParameters();
+
+        $param = $this->findParam($params, 'indexQueueRepository');
+        self::assertInstanceOf(\ReflectionNamedType::class, $param->getType());
+        self::assertSame(IndexQueueRepository::class, $param->getType()->getName());
+    }
+
+    #[Test]
+    public function controllerHasIndexQueueProcessorDependency(): void
+    {
+        $params = (new \ReflectionMethod(SearchBackendController::class, '__construct'))
+            ->getParameters();
+
+        $param = $this->findParam($params, 'indexQueueProcessor');
+        self::assertInstanceOf(\ReflectionNamedType::class, $param->getType());
+        self::assertSame(IndexQueueProcessor::class, $param->getType()->getName());
+    }
+
+    #[Test]
+    public function queueActionMethodExists(): void
+    {
+        self::assertTrue(method_exists(SearchBackendController::class, 'queueAction'));
+    }
+
+    #[Test]
+    public function queueActionReturnsResponseInterface(): void
+    {
+        $returnType = (new \ReflectionMethod(SearchBackendController::class, 'queueAction'))
+            ->getReturnType();
+
+        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        self::assertSame(ResponseInterface::class, $returnType->getName());
+    }
+
+    #[Test]
+    public function processQueueActionMethodExists(): void
+    {
+        self::assertTrue(method_exists(SearchBackendController::class, 'processQueueAction'));
+    }
+
+    #[Test]
+    public function processQueueActionReturnsResponseInterface(): void
+    {
+        $returnType = (new \ReflectionMethod(SearchBackendController::class, 'processQueueAction'))
+            ->getReturnType();
+
+        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        self::assertSame(ResponseInterface::class, $returnType->getName());
+    }
+
+    #[Test]
+    public function formatJobsForDisplayFormatsTimestampsAndCastsTypes(): void
+    {
+        $controller = new \ReflectionClass(SearchBackendController::class)->newInstanceWithoutConstructor();
+        $method = new \ReflectionMethod(SearchBackendController::class, 'formatJobsForDisplay');
+
+        $result = $method->invoke($controller, [
+            [
+                'uid' => '1',
+                'table_name' => 'pages',
+                'record_uid' => '42',
+                'operation' => 'index',
+                'status' => 'done',
+                'error_message' => '',
+                'queued_date' => '1000',
+                'processed_date' => '0',
+            ],
+        ]);
+
+        self::assertSame(1, $result[0]['uid']);
+        self::assertSame('pages', $result[0]['tableName']);
+        self::assertSame(42, $result[0]['recordUid']);
+        self::assertSame(date('Y-m-d H:i:s', 1000), $result[0]['queuedDate']);
+        self::assertSame('', $result[0]['processedDate']);
     }
 
     #[Test]

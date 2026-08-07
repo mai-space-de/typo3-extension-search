@@ -108,13 +108,81 @@
                 <source>No indexers are currently registered.</source>
                 <target>Es sind derzeit keine Indexer registriert.</target>
             </trans-unit>
-            <trans-unit id="hook.indexingFailed.title">
-                <source>Search index update failed</source>
-                <target>Aktualisierung des Suchindex fehlgeschlagen</target>
+            <trans-unit id="index.queue.title">
+                <source>View the async index queue</source>
+                <target>Die asynchrone Index-Warteschlange anzeigen</target>
             </trans-unit>
-            <trans-unit id="hook.indexingFailed.message">
-                <source>The record was saved, but Solr indexing failed for %s:%d (%s).</source>
-                <target>Der Datensatz wurde gespeichert, aber die Solr-Indexierung ist fehlgeschlagen für %s:%d (%s).</target>
+            <trans-unit id="index.queue.button">
+                <source>Index Queue</source>
+                <target>Index-Warteschlange</target>
+            </trans-unit>
+            <trans-unit id="queue.title">
+                <source>Search Index Queue</source>
+                <target>Such-Index-Warteschlange</target>
+            </trans-unit>
+            <trans-unit id="queue.pending">
+                <source>Pending</source>
+                <target>Ausstehend</target>
+            </trans-unit>
+            <trans-unit id="queue.processing">
+                <source>Processing</source>
+                <target>In Bearbeitung</target>
+            </trans-unit>
+            <trans-unit id="queue.done">
+                <source>Done</source>
+                <target>Erledigt</target>
+            </trans-unit>
+            <trans-unit id="queue.failed">
+                <source>Failed</source>
+                <target>Fehlgeschlagen</target>
+            </trans-unit>
+            <trans-unit id="queue.process.title">
+                <source>Process a batch of pending queue items now</source>
+                <target>Jetzt ein Batch ausstehender Warteschlangeneinträge verarbeiten</target>
+            </trans-unit>
+            <trans-unit id="queue.process.button">
+                <source>Process Queue Now</source>
+                <target>Warteschlange jetzt verarbeiten</target>
+            </trans-unit>
+            <trans-unit id="queue.back">
+                <source>Back to Index</source>
+                <target>Zurück zur Übersicht</target>
+            </trans-unit>
+            <trans-unit id="queue.recent.title">
+                <source>Recent Queue Activity</source>
+                <target>Letzte Warteschlangenaktivität</target>
+            </trans-unit>
+            <trans-unit id="queue.recent.table">
+                <source>Table</source>
+                <target>Tabelle</target>
+            </trans-unit>
+            <trans-unit id="queue.recent.recordUid">
+                <source>Record UID</source>
+                <target>Datensatz-UID</target>
+            </trans-unit>
+            <trans-unit id="queue.recent.operation">
+                <source>Operation</source>
+                <target>Vorgang</target>
+            </trans-unit>
+            <trans-unit id="queue.recent.status">
+                <source>Status</source>
+                <target>Status</target>
+            </trans-unit>
+            <trans-unit id="queue.recent.queuedDate">
+                <source>Queued</source>
+                <target>Eingereiht</target>
+            </trans-unit>
+            <trans-unit id="queue.recent.processedDate">
+                <source>Processed</source>
+                <target>Verarbeitet</target>
+            </trans-unit>
+            <trans-unit id="queue.recent.error">
+                <source>Error</source>
+                <target>Fehler</target>
+            </trans-unit>
+            <trans-unit id="queue.recent.noData">
+                <source>The queue is empty.</source>
+                <target>Die Warteschlange ist leer.</target>
             </trans-unit>
         </body>
     </file>

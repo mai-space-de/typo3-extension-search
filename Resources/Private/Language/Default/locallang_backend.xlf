@@ -81,11 +81,62 @@
             <trans-unit id="index.noIndexers">
                 <source>No indexers are currently registered.</source>
             </trans-unit>
-            <trans-unit id="hook.indexingFailed.title">
-                <source>Search index update failed</source>
+            <trans-unit id="index.queue.title">
+                <source>View the async index queue</source>
             </trans-unit>
-            <trans-unit id="hook.indexingFailed.message">
-                <source>The record was saved, but Solr indexing failed for %s:%d (%s).</source>
+            <trans-unit id="index.queue.button">
+                <source>Index Queue</source>
+            </trans-unit>
+            <trans-unit id="queue.title">
+                <source>Search Index Queue</source>
+            </trans-unit>
+            <trans-unit id="queue.pending">
+                <source>Pending</source>
+            </trans-unit>
+            <trans-unit id="queue.processing">
+                <source>Processing</source>
+            </trans-unit>
+            <trans-unit id="queue.done">
+                <source>Done</source>
+            </trans-unit>
+            <trans-unit id="queue.failed">
+                <source>Failed</source>
+            </trans-unit>
+            <trans-unit id="queue.process.title">
+                <source>Process a batch of pending queue items now</source>
+            </trans-unit>
+            <trans-unit id="queue.process.button">
+                <source>Process Queue Now</source>
+            </trans-unit>
+            <trans-unit id="queue.back">
+                <source>Back to Index</source>
+            </trans-unit>
+            <trans-unit id="queue.recent.title">
+                <source>Recent Queue Activity</source>
+            </trans-unit>
+            <trans-unit id="queue.recent.table">
+                <source>Table</source>
+            </trans-unit>
+            <trans-unit id="queue.recent.recordUid">
+                <source>Record UID</source>
+            </trans-unit>
+            <trans-unit id="queue.recent.operation">
+                <source>Operation</source>
+            </trans-unit>
+            <trans-unit id="queue.recent.status">
+                <source>Status</source>
+            </trans-unit>
+            <trans-unit id="queue.recent.queuedDate">
+                <source>Queued</source>
+            </trans-unit>
+            <trans-unit id="queue.recent.processedDate">
+                <source>Processed</source>
+            </trans-unit>
+            <trans-unit id="queue.recent.error">
+                <source>Error</source>
+            </trans-unit>
+            <trans-unit id="queue.recent.noData">
+                <source>The queue is empty.</source>
             </trans-unit>
         </body>
     </file>
