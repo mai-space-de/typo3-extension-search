@@ -12,6 +12,7 @@ use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
+use TYPO3\CMS\Core\Site\SiteFinder;
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
@@ -29,13 +30,18 @@ class DataHandlerHook
 {
     private readonly IndexerRegistry $indexerRegistry;
 
+    private readonly SiteFinder $siteFinder;
+
     public function __construct(
         ?IndexerRegistry $indexerRegistry = null,
         private readonly ?FlashMessageService $flashMessageService = null,
         private readonly ?LoggerInterface $logger = null,
+        ?SiteFinder $siteFinder = null,
     ) {
         $this->indexerRegistry = $indexerRegistry
             ?? GeneralUtility::makeInstance(IndexerRegistry::class);
+        $this->siteFinder = $siteFinder
+            ?? GeneralUtility::makeInstance(SiteFinder::class);
     }
 
     /**
@@ -75,8 +81,15 @@ class DataHandlerHook
             return;
         }
 
+        $languageUid = isset($record->sys_language_uid) ? (int) $record->sys_language_uid : 0;
+        $languageCode = $this->resolveLanguageCode($languageUid);
+
         try {
-            $indexer->indexRecord($record, new IndexingContext(core: ''));
+            $indexer->indexRecord($record, new IndexingContext(
+                core: '',
+                languageCode: $languageCode,
+                languageUid: $languageUid,
+            ));
         } catch (\Throwable $exception) {
             $this->handleIndexingFailure(
                 'index',
@@ -151,6 +164,33 @@ class DataHandlerHook
         }
 
         return $obj;
+    }
+
+    /**
+     * Resolve the ISO 639-1 code for a sys_language_uid via the site's configured languages,
+     * so incremental re-index-on-save routes to the same core as a full reindex.
+     */
+    private function resolveLanguageCode(int $languageUid): ?string
+    {
+        try {
+            $sites = $this->siteFinder->getAllSites();
+        } catch (\Throwable) {
+            return null;
+        }
+
+        $site = reset($sites);
+
+        if ($site === false) {
+            return null;
+        }
+
+        foreach ($site->getLanguages() as $language) {
+            if ($language->getLanguageId() === $languageUid) {
+                return $language->getLocale()->getLanguageCode();
+            }
+        }
+
+        return null;
     }
 
     private function handleIndexingFailure(

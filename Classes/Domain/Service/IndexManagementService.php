@@ -15,6 +15,7 @@ use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
+use TYPO3\CMS\Core\Site\SiteFinder;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 class IndexManagementService implements SingletonInterface, LoggerAwareInterface
@@ -27,6 +28,7 @@ class IndexManagementService implements SingletonInterface, LoggerAwareInterface
         private readonly ConnectionFactory $connectionFactory,
         private readonly ProviderRegistry $providerRegistry,
         private readonly ?IndexerRegistry $indexerRegistry = null,
+        private readonly ?SiteFinder $siteFinder = null,
     ) {}
 
     public function addDocument(Document $document, ?SiteLanguage $language = null): void
@@ -128,6 +130,8 @@ class IndexManagementService implements SingletonInterface, LoggerAwareInterface
             return;
         }
 
+        $languages = $this->resolveSiteLanguages();
+
         foreach ($coreMapping as $languageCode => $core) {
             $context = GeneralUtility::makeInstance(
                 IndexingContext::class,
@@ -135,12 +139,44 @@ class IndexManagementService implements SingletonInterface, LoggerAwareInterface
                 100,
                 0,
                 $languageCode,
+                $this->resolveLanguageUid((string) $languageCode, $languages),
             );
 
             foreach ($indexers as $indexer) {
                 $indexer->indexAll($context);
             }
         }
+    }
+
+    /**
+     * @return SiteLanguage[]
+     */
+    private function resolveSiteLanguages(): array
+    {
+        try {
+            $siteFinder = $this->siteFinder ?? GeneralUtility::makeInstance(SiteFinder::class);
+            $sites = $siteFinder->getAllSites();
+        } catch (\Throwable) {
+            return [];
+        }
+
+        $site = reset($sites);
+
+        return $site !== false ? $site->getLanguages() : [];
+    }
+
+    /**
+     * @param SiteLanguage[] $languages
+     */
+    private function resolveLanguageUid(string $languageCode, array $languages): ?int
+    {
+        foreach ($languages as $language) {
+            if ($language->getLocale()->getLanguageCode() === $languageCode) {
+                return $language->getLanguageId();
+            }
+        }
+
+        return null;
     }
 
     /**

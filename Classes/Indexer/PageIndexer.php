@@ -160,15 +160,24 @@ class PageIndexer extends AbstractIndexer implements SearchResultFormatterInterf
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
             ->getQueryBuilderForTable('pages');
 
+        $constraints = [
+            $queryBuilder->expr()->eq('doktype', $queryBuilder->createNamedParameter(self::DOKTYPE_STANDARD, Connection::PARAM_INT)),
+            $queryBuilder->expr()->eq('hidden', $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)),
+            $queryBuilder->expr()->eq('deleted', $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)),
+            $queryBuilder->expr()->eq('no_search', $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)),
+        ];
+
+        if ($context->languageUid !== null) {
+            $constraints[] = $queryBuilder->expr()->eq(
+                'sys_language_uid',
+                $queryBuilder->createNamedParameter($context->languageUid, Connection::PARAM_INT),
+            );
+        }
+
         $rows = $queryBuilder
             ->select('uid', 'title', 'description', 'slug', 'crdate', 'tstamp', 'pid')
             ->from('pages')
-            ->where(
-                $queryBuilder->expr()->eq('doktype', $queryBuilder->createNamedParameter(self::DOKTYPE_STANDARD, Connection::PARAM_INT)),
-                $queryBuilder->expr()->eq('hidden', $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)),
-                $queryBuilder->expr()->eq('deleted', $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)),
-                $queryBuilder->expr()->eq('no_search', $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)),
-            )
+            ->where(...$constraints)
             ->setMaxResults($context->batchSize)
             ->setFirstResult($context->offset)
             ->executeQuery()

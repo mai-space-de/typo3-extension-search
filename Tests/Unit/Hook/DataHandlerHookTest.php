@@ -15,6 +15,7 @@ use TYPO3\CMS\Core\DataHandling\DataHandler;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageQueue;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
+use TYPO3\CMS\Core\Site\SiteFinder;
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 
 final class DataHandlerHookTest extends TestCase
@@ -39,10 +40,16 @@ final class DataHandlerHookTest extends TestCase
 
     private function buildHook(IndexerRegistry $registry): DataHandlerHook
     {
+        // SiteFinder is readonly (cannot be mocked); an uninitialized instance is
+        // fine because resolveLanguageCode() catches the resulting access error
+        // and falls back to a null language code, same as "no site configured".
+        $siteFinder = new \ReflectionClass(SiteFinder::class)->newInstanceWithoutConstructor();
+
         return new DataHandlerHook(
             $registry,
             $this->flashMessageService,
             $this->logger,
+            $siteFinder,
         );
     }
 
