@@ -622,8 +622,29 @@ Turns SPEC-v1's deferred "v2" into something concretely buildable now.
 - [ ] Quota/threshold monitoring for AI provider calls (Meilisearch-14.0.1
       lesson) — scheduled check + warning email on approaching OpenAI cost/rate
       limits.
-- [ ] Streaming answer synthesis in `SearchSynthesisService`, using the already-
-      ported `StreamingChatProviderInterface`.
+- [x] Streaming answer synthesis. Not added inside `SearchSynthesisService`
+      itself (an Extbase `ActionController` response is fully buffered before
+      being sent, which defeats streaming) — instead a new plain PSR-15
+      `Middleware/SearchStreamMiddleware` (`POST /api/search/stream`, registered
+      in `Configuration/RequestMiddlewares.php`) uses the already-ported
+      `StreamingChatProviderInterface` directly and returns a
+      `Http/SseStream` response body. `SseStream` implements TYPO3 core's
+      `@internal SelfEmittableStreamInterface` (the same fast-path
+      `FalDumpFileContentsDecoratorStream` uses for file downloads) so
+      `AbstractApplication::sendResponse()` calls `emit()` — writing one SSE
+      frame per token via `echo`+`flush()` — instead of buffering
+      `__toString()`. `SearchSynthesisService::buildChatRequest()` was
+      extracted from `synthesise()` so both the synchronous controller path and
+      the streaming middleware build the identical prompt. Consumed by a small
+      vanilla-JS file, `Resources/Public/JavaScript/search-stream.js` (no
+      bundler, matching `mai_faq`'s `faq.js` convention), loaded via
+      `PageRendererTrait::addJsFile()` only when streaming is enabled; a
+      `MutationObserver` re-initialises any placeholder that appears after a
+      `mai_turbo` frame swap, since `mai_turbo` does not currently dispatch a
+      frame-loaded event of its own. `SearchController::resultsAction()` only
+      renders the synchronous answer card when streaming is *off*; when it's
+      on, page 1 renders a `data-search-stream` placeholder instead and the
+      middleware produces the answer.
 - [ ] **Open decision, confirm before implementing:** single Meilisearch index
       per site with `language`/`rootPageId` as filterable attributes, vs. the
       current per-language-core/index plan in `SPEC-v1.md`. Simpler ops, weaker
@@ -683,29 +704,80 @@ is the provider/RAG layer, audited against `mai_search`'s actual code (not assum
       frontend RAG toggle, or the Phase 5 health module below) can autowire it
       without further wiring. Not yet wired into anything — this phase item is
       "the service exists and is tested," not "the RAG toggle hides itself."
-- [ ] **Not done, deliberately deferred — real, separate scope decisions:**
-  - Multi-turn conversation support (`smart_search`'s `ConversationHistory`
-        value object) for `SearchSynthesisService`, currently single-shot only.
-  - Wiring the already-ported-but-unused `StreamingChatProviderInterface` into
-        `SearchSynthesisService` (this phase's existing streaming-synthesis item,
-        above — `smart_search`'s `generateStream()` is a usable reference).
-  - A reranking step (`smart_search`'s `RerankerInterface`/`LlmReranker`) between
-        retrieval and synthesis. Worth inheriting their lesson directly if built:
-        their reranker originally overwrote `score` with a rank-derived value,
-        which silently broke a downstream threshold filter — reorder without
-        touching `score`.
+- [x] **Multi-turn conversation support** (`smart_search`'s `ConversationHistory`
+      value object, ported and adapted). `mai_search` has no session state and no
+      frontend JS runtime for the synchronous form path, so — decided explicitly,
+      not assumed — history travels **stateless, round-tripped in a hidden form
+      field** (`<f:form.hidden name="history">` in `Form.html`/`Results.html`,
+      `data-search-history-field` for the streaming JS to update) rather than a
+      server-side session. `Domain/Model/ConversationHistory` is immutable,
+      implements `\Countable`, and is deliberately tolerant in `fromArray()`/
+      `fromJson()` (skips malformed entries, rejects any role outside
+      `user`/`assistant`) since it parses a client-editable field — a forged
+      `system`-role turn injected via the hidden field must not reach the prompt.
+      `ragHistoryMaxTurns` (Extension Configuration, default 6) bounds how many
+      turns `SearchController`/`SearchStreamMiddleware` retain via
+      `ConversationHistory::truncated()`.
+- [x] **Reranking step** (`smart_search`'s `RerankerInterface`/`LlmReranker`,
+      ported). Their documented lesson was inherited directly: `LlmReranker`
+      reorders `SearchResult[]` by relevance without ever touching `score`.
+      Decided explicitly: when `ragRerankEnabled` is on, `RagContextResolver`
+      issues a **dedicated wider query, independent of pagination, page-1-only**
+      (`ragRerankWidth` candidates from offset 0) rather than reranking the
+      paginated display list — pagination and page 2+ synthesis are untouched.
+      When rerank is off, the existing page-1 result set is reused as RAG
+      context directly (no behaviour change from before this phase).
+      `ragRerankWidth`/`ragTopN` live in Extension Configuration (see below).
   - `mai-search:cleanup`-equivalent orphan detection (`smart_search`'s
         `smartsearch:cleanup` + `OrphanProviderInterface`, refuses to act on a
         suspiciously empty live-identifier list unless `--allow-empty`). Nothing
         in `mai_search` currently catches documents left behind by hard deletes,
         disabled extensions, or migration errors outside the `DataHandlerHook` path.
+        **Still deferred.**
   - Reviving `ContentChunkerService` (confirmed still dead/unwired code) using
         `smart_search`'s `ParagraphChunker`/`SlidingWindowChunker` as a better
         starting point than the current unvalidated sliding-window-only version —
         only relevant once/if the chunk-index RAG upgrade above actually happens.
+        **Still deferred.**
   - Not transferable at all: vector storage/codec (`mai_search` doesn't own
         vector storage), metadata strict-equality filtering, and RRF hybrid-search
         fusion (Solr/Meilisearch already own equivalent ranking natively).
+
+#### Phase 7 addendum — config placement, and caching/invalidation (2026-08-07)
+
+- **Config placement decision.** `ragRerankEnabled`/`ragRerankWidth`/`ragTopN`/
+  `ragStreamingEnabled`/`ragHistoryMaxTurns` live in Extension Configuration
+  (`ext_conf_template.txt`, typed accessor `Classes/Configuration/RagConfiguration.php`),
+  *not* alongside `ragEnabled` in `plugin.tx_maisearch.settings` TypoScript.
+  Reason: `SearchStreamMiddleware` is a plain PSR-15 middleware with no resolved
+  TypoScript Frontend Controller / Extbase settings context available to it,
+  whereas `ExtensionConfiguration` is readable from anywhere regardless of
+  request stage — the same accessor is shared by `SearchController` and the
+  middleware so both branch on rerank/streaming identically.
+- [ ] **Not done, newly identified while implementing the above — raised
+      mid-session, deliberately scoped as backlog, not built yet:**
+  - **No cached generated responses exist today** — `SearchSynthesisService`/
+        `SearchStreamMiddleware` call the active chat provider live on every
+        request, so there is currently nothing to invalidate. Audited before
+        writing this down: `DataHandlerHook` already re-indexes a record
+        immediately on save and removes it on delete, so the *search index*
+        itself is never stale for more than one save cycle — the gap is
+        specifically an *answer cache*, which doesn't exist.
+  - If a synthesis-answer cache is added later (TYPO3 Caching Framework,
+        keyed by a hash of query + resolved context IDs + conversation history),
+        it needs invalidation tied to content changes, which in turn needs two
+        prerequisites neither of which exist yet:
+        1. **Content-hash tracking** per indexed document/chunk, so a save that
+           doesn't actually change extracted content doesn't force a cache miss
+           (or, once chunking exists, doesn't force needless re-embedding).
+        2. **Orphan chunk cleanup** (see the still-deferred item above) — without
+           it, a document that shrinks from 5 chunks to 3 leaves stale chunks 4–5
+           behind, which a naive "invalidate what changed" cache scheme would miss.
+  - Decided explicitly: **not building any of this now.** Reranking, multi-turn
+        history, and streaming (this addendum) are being finished and validated
+        first; the answer-cache + content-hash + orphan-cleanup + chunker-revival
+        cluster is one coherent follow-up piece of work, tracked here rather than
+        started mid-flight on top of three already-large in-progress features.
 
 ### Phase 8 — Frontend/UX quality-of-life (P3)
 

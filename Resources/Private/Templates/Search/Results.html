@@ -26,6 +26,11 @@
                 <f:if condition="{type}">
                     <f:form.hidden name="type" value="{type}" />
                 </f:if>
+                <f:form.hidden
+                    name="history"
+                    value="{historyPayload}"
+                    additionalAttributes="{'data-search-history-field': '1'}"
+                />
                 <f:form.submit
                     value="{f:translate(key: 'search.submit', default: 'Search')}"
                     class="search-form__submit"
@@ -57,6 +62,27 @@
                     </f:if>
                 </div>
             </f:if>
+        </f:if>
+
+        <f:if condition="{ragStreaming}">
+            <div
+                class="search-synthesis search-synthesis--streaming"
+                data-search-stream="1"
+                data-search-stream-query="{query}"
+                data-search-stream-type="{type}"
+                data-search-stream-history="{historyPayload}"
+            >
+                <div class="search-synthesis__answer" data-search-stream-answer aria-live="polite"></div>
+                <p class="search-synthesis__status" data-search-stream-status>
+                    <f:translate key="search.synthesis.loading" default="Generating answer…" />
+                </p>
+                <div class="search-synthesis__sources" data-search-stream-sources-wrapper hidden="hidden">
+                    <h4 class="search-synthesis__sources-heading">
+                        <f:translate key="search.synthesis.sources" default="Sources" />
+                    </h4>
+                    <ul class="search-synthesis__sources-list" data-search-stream-sources></ul>
+                </div>
+            </div>
         </f:if>
 
         <f:if condition="{types}">

@@ -29,6 +29,10 @@ plugin.tx_maisearch {
         # RAG (Retrieval-Augmented Generation)
         # When enabled, top search results are synthesised into an AI-generated answer card.
         # Requires: Solr DenseVectorField schema, OpenAI API key in mai_translate.
+        # Rerank/streaming tuning (ragRerankEnabled, ragTopN, ragStreamingEnabled, ...) lives
+        # in Extension Configuration, not here — see ext_conf_template.txt. Those values must
+        # also be reachable from SearchStreamMiddleware, a plain PSR-15 middleware with no
+        # TypoScript Frontend Controller context available, unlike this per-plugin setting.
         ragEnabled = 0
     }
 }

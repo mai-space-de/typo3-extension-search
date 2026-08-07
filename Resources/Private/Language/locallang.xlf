@@ -42,6 +42,9 @@
             <trans-unit id="search.synthesis.sources">
                 <source>Sources</source>
             </trans-unit>
+            <trans-unit id="search.synthesis.loading">
+                <source>Generating answer…</source>
+            </trans-unit>
         </body>
     </file>
 </xliff>

@@ -4,19 +4,39 @@ declare(strict_types=1);
 
 namespace Maispace\MaiSearch\Controller;
 
+use Maispace\MaiBase\Controller\Traits\PageRendererTrait;
+use Maispace\MaiSearch\Configuration\RagConfiguration;
+use Maispace\MaiSearch\Domain\Model\ConversationHistory;
+use Maispace\MaiSearch\Domain\Service\RagContextResolver;
 use Maispace\MaiSearch\Domain\Service\SearchService;
 use Maispace\MaiSearch\Domain\Service\SearchSynthesisService;
 use Psr\Http\Message\ResponseInterface;
+use TYPO3\CMS\Core\Page\AssetCollector;
+use TYPO3\CMS\Core\Page\PageRenderer;
 use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
 use TYPO3\CMS\Extbase\Attribute\RateLimit;
 use TYPO3\CMS\Extbase\Mvc\Controller\ActionController;
 
 class SearchController extends ActionController
 {
+    use PageRendererTrait;
+
     public function __construct(
         private readonly SearchService $searchService,
         private readonly SearchSynthesisService $synthesisService,
+        private readonly RagContextResolver $ragContextResolver,
+        private readonly RagConfiguration $ragConfiguration,
     ) {}
+
+    public function injectPageRenderer(PageRenderer $pageRenderer): void
+    {
+        $this->pageRenderer = $pageRenderer;
+    }
+
+    public function injectAssetCollector(AssetCollector $assetCollector): void
+    {
+        $this->assetCollector = $assetCollector;
+    }
 
     /**
      * Legacy entry point — plugin registers `results` only; delegates for BC.
@@ -26,13 +46,23 @@ class SearchController extends ActionController
         return $this->resultsAction();
     }
 
+    /**
+     * @param string $history JSON-encoded ConversationHistory::toArray() payload, round-tripped through a
+     *                        hidden form field so multi-turn RAG follow-ups work without server-side session
+     *                        state (SPEC-v2.md Phase 7 addendum). Empty on the very first query of a session.
+     */
     #[RateLimit(limit: 30, interval: '1 minute')]
-    public function resultsAction(string $query = '', string $type = '', int $page = 1): ResponseInterface
+    public function resultsAction(string $query = '', string $type = '', int $page = 1, string $history = ''): ResponseInterface
     {
         $ragEnabled = $this->resolveRagEnabled();
         $perPage = max(1, (int) ($this->settings['resultsPerPage'] ?? 20));
         $page = max(1, $page);
         $typeFilter = $type !== '' ? $type : null;
+        $conversationHistory = $this->decodeHistory($history);
+
+        if ($ragEnabled && $this->ragConfiguration->isStreamingEnabled()) {
+            $this->addJsFile('mai_search_stream', 'EXT:mai_search/Resources/Public/JavaScript/search-stream.js');
+        }
 
         if (trim($query) === '') {
             $this->view->assignMultiple([
@@ -40,6 +70,7 @@ class SearchController extends ActionController
                 'query' => $query,
                 'type' => $typeFilter,
                 'page' => $page,
+                'historyPayload' => $history,
             ]);
 
             return $this->htmlResponse();
@@ -57,9 +88,26 @@ class SearchController extends ActionController
             type: $typeFilter,
         );
 
-        $synthesisResult = $ragEnabled && $resultPage->results !== []
-            ? $this->synthesisService->synthesise($query, $resultPage->results, $ragEnabled)
-            : null;
+        $ragOnPageOne = $ragEnabled && $page === 1 && $resultPage->results !== [];
+        $streamingActive = $ragOnPageOne && $this->ragConfiguration->isStreamingEnabled();
+
+        $synthesisResult = null;
+        $historyPayload = $history;
+
+        if ($ragOnPageOne && !$streamingActive) {
+            $context = $this->ragConfiguration->isRerankEnabled()
+                ? $this->ragContextResolver->resolve(
+                    $query,
+                    $language,
+                    $typeFilter,
+                    $this->ragConfiguration->getTopN(),
+                    $this->ragConfiguration->getRerankWidth(),
+                )
+                : $resultPage->results;
+
+            $synthesisResult = $this->synthesisService->synthesise($query, $context, $ragEnabled, $conversationHistory);
+            $historyPayload = $this->encodeHistory($this->appendTurn($conversationHistory, $query, $synthesisResult->answer));
+        }
 
         $this->view->assignMultiple([
             'query' => $query,
@@ -75,6 +123,8 @@ class SearchController extends ActionController
             'nextPage' => $resultPage->page < $resultPage->getTotalPages() ? $resultPage->page + 1 : null,
             'ragEnabled' => $ragEnabled,
             'synthesisResult' => $synthesisResult,
+            'ragStreaming' => $streamingActive,
+            'historyPayload' => $historyPayload,
         ]);
 
         return $this->htmlResponse();
@@ -90,5 +140,23 @@ class SearchController extends ActionController
     private function resolveRagEnabled(): bool
     {
         return (bool) ($this->settings['ragEnabled'] ?? false);
+    }
+
+    private function decodeHistory(string $history): ConversationHistory
+    {
+        return ConversationHistory::fromJson($history);
+    }
+
+    private function appendTurn(ConversationHistory $history, string $query, string $answer): ConversationHistory
+    {
+        return $history
+            ->withUserMessage($query)
+            ->withAssistantMessage($answer)
+            ->truncated($this->ragConfiguration->getHistoryMaxTurns());
+    }
+
+    private function encodeHistory(ConversationHistory $history): string
+    {
+        return $history->toJson();
     }
 }

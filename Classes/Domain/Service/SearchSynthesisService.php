@@ -9,6 +9,7 @@ use Maispace\MaiSearch\Domain\Dto\SourceReference;
 use Maispace\MaiSearch\Domain\Dto\SynthesisResult;
 use Maispace\MaiSearch\Domain\Model\ChatMessage;
 use Maispace\MaiSearch\Domain\Model\ChatRequest;
+use Maispace\MaiSearch\Domain\Model\ConversationHistory;
 use Maispace\MaiSearch\Service\ProviderRegistry;
 
 /**
@@ -41,12 +42,19 @@ final class SearchSynthesisService
     ) {}
 
     /**
-     * @param string         $query      The user's original search query
-     * @param SearchResult[] $context    Top-ranked search results to use as context
-     * @param bool           $ragEnabled Whether RAG synthesis is enabled
+     * @param string               $query      The user's original search query
+     * @param SearchResult[]       $context    Top-ranked search results to use as context
+     * @param bool                 $ragEnabled Whether RAG synthesis is enabled
+     * @param ConversationHistory|null $history Prior turns, inserted between the system
+     *                                          message and the current question so the
+     *                                          model can resolve follow-ups ("and in German?")
      */
-    public function synthesise(string $query, array $context, bool $ragEnabled = true): SynthesisResult
-    {
+    public function synthesise(
+        string $query,
+        array $context,
+        bool $ragEnabled = true,
+        ?ConversationHistory $history = null,
+    ): SynthesisResult {
         if (!$ragEnabled) {
             return SynthesisResult::empty();
         }
@@ -55,15 +63,33 @@ final class SearchSynthesisService
             return SynthesisResult::empty();
         }
 
-        $request = new ChatRequest([
-            new ChatMessage('system', self::SYSTEM_PROMPT),
-            new ChatMessage('user', $this->buildUserPrompt($query, $context)),
-        ]);
-
+        $request = $this->buildChatRequest($query, $context, $history);
         $answer = $this->providerRegistry->getActiveChatProvider()->complete($request)->content;
         $sources = $this->buildSources($context);
 
         return new SynthesisResult($answer, $sources);
+    }
+
+    /**
+     * Builds the same ChatRequest synthesise() sends to the active chat provider,
+     * exposed separately so the streaming endpoint (Middleware/SearchStreamMiddleware)
+     * can send an identical prompt through StreamingChatProviderInterface::stream()
+     * instead of ChatProviderInterface::complete() — both paths must produce the same
+     * answer for the same input, just delivered synchronously vs. token-by-token.
+     *
+     * @param SearchResult[] $context
+     */
+    public function buildChatRequest(string $query, array $context, ?ConversationHistory $history = null): ChatRequest
+    {
+        $messages = [new ChatMessage('system', self::SYSTEM_PROMPT)];
+
+        if ($history !== null) {
+            array_push($messages, ...$history->getMessages());
+        }
+
+        $messages[] = new ChatMessage('user', $this->buildUserPrompt($query, $context));
+
+        return new ChatRequest($messages);
     }
 
     /**

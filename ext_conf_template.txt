@@ -59,3 +59,24 @@ custom.chatUrl =
 
 # cat=providers/custom/30; type=string; label=Custom provider API key
 custom.apiKey =
+
+# RAG rerank/streaming/history tuning lives here rather than in TypoScript plugin
+# settings (unlike plugin.tx_maisearch.settings.ragEnabled) because
+# SearchStreamMiddleware, a plain PSR-15 middleware, needs to read these too and
+# has no reliable access to a resolved TypoScript Frontend Controller. See
+# Classes/Configuration/RagConfiguration.php and SPEC-v2.md Phase 7 addendum.
+
+# cat=rag/enable/10; type=boolean; label=Enable LLM reranking of RAG context (widens retrieval beyond the display page, page 1 only)
+ragRerankEnabled = 0
+
+# cat=rag/enable/20; type=int+; label=Rerank candidate width (how many results to fetch before reranking)
+ragRerankWidth = 20
+
+# cat=rag/enable/30; type=int+; label=Number of top reranked results to use as RAG context (only applies when rerank is enabled)
+ragTopN = 5
+
+# cat=rag/enable/40; type=boolean; label=Enable token-by-token streaming of the RAG answer (requires JS)
+ragStreamingEnabled = 0
+
+# cat=rag/enable/50; type=int+; label=Maximum conversation turns to retain for multi-turn RAG follow-ups (0 disables history)
+ragHistoryMaxTurns = 6

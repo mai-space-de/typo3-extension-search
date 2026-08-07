@@ -24,6 +24,11 @@
                     class="search-form__input"
                     additionalAttributes="{autocomplete: 'off', 'data-testid': 'search-input'}"
                 />
+                <f:form.hidden
+                    name="history"
+                    value="{historyPayload}"
+                    additionalAttributes="{'data-search-history-field': '1'}"
+                />
                 <f:form.submit
                     value="{f:translate(key: 'search.submit', default: 'Search')}"
                     class="search-form__submit"

@@ -9,6 +9,7 @@ use Maispace\MaiSearch\Domain\Dto\SourceReference;
 use Maispace\MaiSearch\Domain\Dto\SynthesisResult;
 use Maispace\MaiSearch\Domain\Model\ChatRequest;
 use Maispace\MaiSearch\Domain\Model\ChatResponse;
+use Maispace\MaiSearch\Domain\Model\ConversationHistory;
 use Maispace\MaiSearch\Domain\Service\ChatProviderInterface;
 use Maispace\MaiSearch\Domain\Service\SearchSynthesisService;
 use Maispace\MaiSearch\Service\ProviderRegistry;
@@ -212,6 +213,75 @@ final class SearchSynthesisServiceTest extends TestCase
 
         self::assertSame('', $empty->answer);
         self::assertSame([], $empty->sources);
+    }
+
+    // ── conversation history ─────────────────────────────────────────────────
+
+    #[Test]
+    public function synthesiseInsertsHistoryBetweenSystemMessageAndCurrentQuestion(): void
+    {
+        $history = ConversationHistory::empty()
+            ->withUserMessage('What are the opening hours?')
+            ->withAssistantMessage('8:00 to 20:00.');
+
+        $this->chatProvider
+            ->expects(self::once())
+            ->method('complete')
+            ->with(self::callback(static function (ChatRequest $request): bool {
+                return $request->messages[0]->role === 'system'
+                    && $request->messages[1]->role === 'user'
+                    && $request->messages[1]->content === 'What are the opening hours?'
+                    && $request->messages[2]->role === 'assistant'
+                    && $request->messages[2]->content === '8:00 to 20:00.'
+                    && $request->messages[3]->role === 'user'
+                    && str_contains($request->messages[3]->content, 'And on weekends?');
+            }))
+            ->willReturn(new ChatResponse('ok'));
+
+        $this->service->synthesise('And on weekends?', [$this->makeResult()], true, $history);
+    }
+
+    #[Test]
+    public function synthesiseWorksWithoutHistoryArgument(): void
+    {
+        $this->chatProvider
+            ->expects(self::once())
+            ->method('complete')
+            ->with(self::callback(static function (ChatRequest $request): bool {
+                return count($request->messages) === 2;
+            }))
+            ->willReturn(new ChatResponse('ok'));
+
+        $this->service->synthesise('query', [$this->makeResult()], true);
+    }
+
+    #[Test]
+    public function synthesiseIgnoresEmptyHistory(): void
+    {
+        $this->chatProvider
+            ->expects(self::once())
+            ->method('complete')
+            ->with(self::callback(static function (ChatRequest $request): bool {
+                return count($request->messages) === 2;
+            }))
+            ->willReturn(new ChatResponse('ok'));
+
+        $this->service->synthesise('query', [$this->makeResult()], true, ConversationHistory::empty());
+    }
+
+    #[Test]
+    public function buildChatRequestProducesTheSamePromptSynthesiseSends(): void
+    {
+        $context = [$this->makeResult(title: 'A', snippet: 'B')];
+        $history = ConversationHistory::empty()->withUserMessage('prior question');
+
+        $request = $this->service->buildChatRequest('query', $context, $history);
+
+        self::assertSame('system', $request->messages[0]->role);
+        self::assertSame('user', $request->messages[1]->role);
+        self::assertSame('prior question', $request->messages[1]->content);
+        self::assertSame('user', $request->messages[2]->role);
+        self::assertStringContainsString('query', $request->messages[2]->content);
     }
 
     private function makeResult(
