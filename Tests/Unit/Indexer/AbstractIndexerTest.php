@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Maispace\MaiSearch\Tests\Unit\Indexer;
 
+use Doctrine\DBAL\Result;
 use Maispace\MaiSearch\Domain\Model\IndexingContext;
 use Maispace\MaiSearch\Domain\Model\SearchDocumentInput;
 use Maispace\MaiSearch\Domain\Service\SearchBackendInterface;
@@ -15,6 +16,11 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
+use TYPO3\CMS\Core\Database\Connection;
+use TYPO3\CMS\Core\Database\ConnectionPool;
+use TYPO3\CMS\Core\Database\Query\Expression\ExpressionBuilder;
+use TYPO3\CMS\Core\Database\Query\QueryBuilder;
+use TYPO3\CMS\Core\Database\Query\Restriction\QueryRestrictionContainerInterface;
 
 final class AbstractIndexerTest extends TestCase
 {
@@ -176,6 +182,43 @@ final class AbstractIndexerTest extends TestCase
 
     // ── content-hash / answer-cache wiring (SPEC-v2.md Phase 7) ──────────────
 
+    /**
+     * ContentHashService is final and can't be mocked directly — wrap a real
+     * instance backed by a mocked ConnectionPool instead, matching
+     * ContentHashServiceTest's own convention. $existingHash controls what
+     * getContentHash() (read twice internally: once by hasContentChanged(),
+     * once by setContentHash()) reports as already stored.
+     */
+    private function createContentHashService(?string $existingHash, ?Connection $writeConnection = null): ContentHashService
+    {
+        $queryBuilder = $this->createMock(QueryBuilder::class);
+        $restrictions = $this->createMock(QueryRestrictionContainerInterface::class);
+        $queryBuilder->method('getRestrictions')->willReturn($restrictions);
+        $queryBuilder->method('select')->willReturnSelf();
+        $queryBuilder->method('from')->willReturnSelf();
+        $queryBuilder->method('where')->willReturnSelf();
+        $queryBuilder->method('delete')->willReturnSelf();
+        $queryBuilder->method('createNamedParameter')->willReturn(':dcValue1');
+        $queryBuilder->method('executeStatement')->willReturn(1);
+
+        $expr = $this->createMock(ExpressionBuilder::class);
+        $expr->method('eq')->willReturn('1 = 1');
+        $queryBuilder->method('expr')->willReturn($expr);
+
+        $result = $this->createMock(Result::class);
+        $result->method('fetchOne')->willReturn($existingHash ?? false);
+        $queryBuilder->method('executeQuery')->willReturn($result);
+
+        $connectionPool = $this->createMock(ConnectionPool::class);
+        $connectionPool->method('getQueryBuilderForTable')->willReturn($queryBuilder);
+
+        if ($writeConnection !== null) {
+            $connectionPool->method('getConnectionForTable')->willReturn($writeConnection);
+        }
+
+        return new ContentHashService($connectionPool);
+    }
+
     #[Test]
     public function sendDocumentSkipsHashTrackingWhenServicesAreNotInjected(): void
     {
@@ -208,11 +251,22 @@ final class AbstractIndexerTest extends TestCase
             boost: 1.0,
         );
 
-        $contentHashService = $this->createMock(ContentHashService::class);
         $newHash = hash('sha256', 'new content');
-        $contentHashService->method('computeContentHash')->with('new content')->willReturn($newHash);
-        $contentHashService->method('hasContentChanged')->with('news', 1, $newHash)->willReturn(true);
-        $contentHashService->expects(self::once())->method('setContentHash')->with('news', 1, $newHash);
+        $connection = $this->createMock(Connection::class);
+        $connection
+            ->expects(self::once())
+            ->method('insert')
+            ->with(
+                'tx_maisearch_content_hash',
+                self::callback(static function (array $data) use ($newHash): bool {
+                    self::assertSame('news', $data['document_type']);
+                    self::assertSame(1, $data['document_uid']);
+                    self::assertSame($newHash, $data['content_hash']);
+
+                    return true;
+                }),
+            );
+        $contentHashService = $this->createContentHashService(existingHash: null, writeConnection: $connection);
 
         $cache = $this->createMock(FrontendInterface::class);
         $cache->expects(self::once())->method('flushByTag')->with('context_' . md5('/news/1'));
@@ -239,9 +293,13 @@ final class AbstractIndexerTest extends TestCase
             boost: 1.0,
         );
 
-        $contentHashService = $this->createMock(ContentHashService::class);
-        $contentHashService->method('hasContentChanged')->willReturn(false);
-        $contentHashService->expects(self::never())->method('setContentHash');
+        $connection = $this->createMock(Connection::class);
+        $connection->expects(self::never())->method('insert');
+        $connection->expects(self::never())->method('update');
+        $contentHashService = $this->createContentHashService(
+            existingHash: hash('sha256', 'same content'),
+            writeConnection: $connection,
+        );
 
         $cache = $this->createMock(FrontendInterface::class);
         $cache->expects(self::never())->method('flushByTag');
@@ -258,10 +316,22 @@ final class AbstractIndexerTest extends TestCase
     #[Test]
     public function removeDocumentClearsTheStoredContentHashWhenServiceIsInjected(): void
     {
-        $contentHashService = $this->createMock(ContentHashService::class);
-        $contentHashService->expects(self::once())->method('removeContentHash')->with('test', 42);
+        $queryBuilder = $this->createMock(QueryBuilder::class);
+        $restrictions = $this->createMock(QueryRestrictionContainerInterface::class);
+        $queryBuilder->method('getRestrictions')->willReturn($restrictions);
+        $queryBuilder->method('where')->willReturnSelf();
+        $queryBuilder->method('createNamedParameter')->willReturn(':dcValue1');
+        $queryBuilder->expects(self::once())->method('delete')->with('tx_maisearch_content_hash')->willReturnSelf();
+        $queryBuilder->method('executeStatement')->willReturn(1);
 
-        $this->subject->injectContentHashService($contentHashService);
+        $expr = $this->createMock(ExpressionBuilder::class);
+        $expr->method('eq')->willReturn('1 = 1');
+        $queryBuilder->method('expr')->willReturn($expr);
+
+        $connectionPool = $this->createMock(ConnectionPool::class);
+        $connectionPool->method('getQueryBuilderForTable')->willReturn($queryBuilder);
+
+        $this->subject->injectContentHashService(new ContentHashService($connectionPool));
 
         $this->subject->publicRemoveDocument(42);
     }

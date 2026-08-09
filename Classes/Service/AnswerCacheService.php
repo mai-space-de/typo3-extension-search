@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Maispace\MaiSearch\Service;
 
+use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
 
 /**
@@ -28,8 +29,13 @@ final class AnswerCacheService
     private const int DEFAULT_TTL = 3600; // 1 hour
 
     public function __construct(
-        private readonly FrontendInterface $cache,
+        private readonly CacheManager $cacheManager,
     ) {}
+
+    private function getCache(): FrontendInterface
+    {
+        return $this->cacheManager->getCache('maisearch_answer');
+    }
 
     /**
      * @param list<string> $contextIds
@@ -39,7 +45,7 @@ final class AnswerCacheService
     {
         $cacheKey = $this->buildCacheKey($query, $contextIds, $history);
 
-        $cached = $this->cache->get($cacheKey);
+        $cached = $this->getCache()->get($cacheKey);
 
         return $cached !== false ? (string) $cached : null;
     }
@@ -57,7 +63,7 @@ final class AnswerCacheService
             $tags[] = self::CONTEXT_TAG_PREFIX . md5($contextId);
         }
 
-        $this->cache->set($cacheKey, $answer, $tags, $ttl);
+        $this->getCache()->set($cacheKey, $answer, $tags, $ttl);
     }
 
     /**
@@ -65,7 +71,7 @@ final class AnswerCacheService
      */
     public function invalidateForUrl(string $url): void
     {
-        $this->cache->flushByTag(self::CONTEXT_TAG_PREFIX . md5($url));
+        $this->getCache()->flushByTag(self::CONTEXT_TAG_PREFIX . md5($url));
     }
 
     /**
@@ -73,7 +79,7 @@ final class AnswerCacheService
      */
     public function invalidateAll(): void
     {
-        $this->cache->flushByTag('maisearch_answer');
+        $this->getCache()->flushByTag('maisearch_answer');
     }
 
     /**
