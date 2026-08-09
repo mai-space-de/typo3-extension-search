@@ -44,4 +44,9 @@ class TypeFacet implements FacetInterface
     {
         return $this->activeValues;
     }
+
+    public function getTotal(): int
+    {
+        return array_sum(array_map(static fn(FacetValue $value): int => $value->count, $this->values));
+    }
 }

@@ -13,6 +13,7 @@ use Maispace\MaiSearch\Domain\Service\SearchSynthesisService;
 use Maispace\MaiSearch\Domain\Service\StreamingChatProviderInterface;
 use Maispace\MaiSearch\Http\SseStream;
 use Maispace\MaiSearch\Middleware\SearchStreamMiddleware;
+use Maispace\MaiSearch\Service\AnswerCacheService;
 use Maispace\MaiSearch\Service\ProviderRegistry;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -22,6 +23,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\StreamFactoryInterface;
 use Psr\Http\Message\StreamInterface;
+use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 
 final class SearchStreamMiddlewareTest extends TestCase
@@ -49,7 +51,7 @@ final class SearchStreamMiddlewareTest extends TestCase
             $this->streamFactory,
             $this->searchService,
             $this->ragContextResolver,
-            new SearchSynthesisService($this->createMock(ProviderRegistry::class)),
+            new SearchSynthesisService($this->createMock(ProviderRegistry::class), new AnswerCacheService($this->createMock(FrontendInterface::class))),
             $this->providerRegistry,
             $ragConfiguration,
         );

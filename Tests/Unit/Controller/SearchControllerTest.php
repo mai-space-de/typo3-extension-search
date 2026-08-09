@@ -10,10 +10,12 @@ use Maispace\MaiSearch\Domain\Service\RagContextResolver;
 use Maispace\MaiSearch\Domain\Service\SearchService;
 use Maispace\MaiSearch\Domain\Service\SearchSynthesisService;
 use Maispace\MaiSearch\Reranking\RerankerInterface;
+use Maispace\MaiSearch\Service\AnswerCacheService;
 use Maispace\MaiSearch\Service\ProviderRegistry;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
+use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
 
@@ -27,8 +29,11 @@ final class SearchControllerTest extends TestCase
     protected function setUp(): void
     {
         $this->searchService = $this->createMock(SearchService::class);
+        $cache = $this->createMock(FrontendInterface::class);
+        $cache->method('get')->willReturn(false);
         $this->synthesisService = new SearchSynthesisService(
             $this->createMock(ProviderRegistry::class),
+            new AnswerCacheService($cache),
         );
         $this->ragContextResolver = new RagContextResolver(
             $this->searchService,

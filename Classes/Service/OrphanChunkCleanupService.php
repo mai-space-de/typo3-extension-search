@@ -13,6 +13,11 @@ use TYPO3\CMS\Core\Database\ConnectionPool;
  * When a document is updated and its chunk count decreases (e.g., content shrinks),
  * the old chunks beyond the new count remain in the index as orphans. This service
  * identifies and removes them to keep the index clean and accurate.
+ *
+ * Not called from the live indexing flow: nothing writes to tx_maisearch_chunks yet
+ * (ContentChunkerService's revival is explicitly still-deferred, SPEC-v2.md Phase 7
+ * addendum) — wiring a cleanup call against a table nothing produces rows in would
+ * always find zero rows. Kept correct and tested so it's ready once chunking exists.
  */
 final class OrphanChunkCleanupService
 {

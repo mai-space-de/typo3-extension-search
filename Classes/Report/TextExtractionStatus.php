@@ -6,12 +6,15 @@ namespace Maispace\MaiSearch\Report;
 
 use Maispace\MaiSearch\Extraction\TikaTextExtractor;
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
-use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Reports\Status;
 use TYPO3\CMS\Reports\StatusProviderInterface;
 
 class TextExtractionStatus implements StatusProviderInterface
 {
+    public function __construct(
+        private readonly TikaTextExtractor $tikaTextExtractor,
+    ) {}
+
     public function getLabel(): string
     {
         return 'Text Extraction';
@@ -19,7 +22,7 @@ class TextExtractionStatus implements StatusProviderInterface
 
     public function getStatus(): array
     {
-        $tikaAvailable = GeneralUtility::makeInstance(TikaTextExtractor::class)->isAvailable();
+        $tikaAvailable = $this->tikaTextExtractor->isAvailable();
 
         if ($tikaAvailable) {
             return [

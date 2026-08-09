@@ -17,6 +17,8 @@ use Maispace\MaiSearch\Domain\Solr\SchemaManager;
 use Maispace\MaiSearch\Domain\Solr\SearchQuery;
 use Maispace\MaiSearch\Domain\Solr\SearchResponse;
 use Maispace\MaiSearch\Domain\Solr\SolrClientInterface;
+use Maispace\MaiSearch\Facet\FacetRegistry;
+use Maispace\MaiSearch\Facet\TypeFacet;
 use Maispace\MaiSearch\Service\ProviderRegistry;
 use Maispace\MaiSearch\Service\ResultFormatterRegistry;
 use PHPUnit\Framework\Attributes\Test;
@@ -29,6 +31,7 @@ class SolrBackendTest extends TestCase
     private ResultFormatterRegistry $resultFormatterRegistry;
     private IndexManagementService $indexManagementService;
     private ProviderRegistry $providerRegistry;
+    private FacetRegistry $facetRegistry;
     private SolrBackend $backend;
 
     protected function setUp(): void
@@ -37,11 +40,14 @@ class SolrBackendTest extends TestCase
         $this->resultFormatterRegistry = $this->createMock(ResultFormatterRegistry::class);
         $this->indexManagementService = $this->createMock(IndexManagementService::class);
         $this->providerRegistry = $this->createMock(ProviderRegistry::class);
+        $this->facetRegistry = new FacetRegistry();
+        $this->facetRegistry->addFacet(new TypeFacet('type', 'Type'));
         $this->backend = new SolrBackend(
             $this->connectionFactory,
             $this->resultFormatterRegistry,
             $this->indexManagementService,
             $this->providerRegistry,
+            $this->facetRegistry,
         );
     }
 
@@ -200,7 +206,14 @@ class SolrBackendTest extends TestCase
         self::assertSame(1, $page->total);
         self::assertSame('news', $page->results[0]->type);
         self::assertSame('News Title', $page->results[0]->title);
-        self::assertSame(['news' => 1], $page->types);
+
+        self::assertCount(1, $page->facets);
+        $typeFacet = $page->getFacet('type');
+        self::assertNotNull($typeFacet);
+        self::assertSame('Type', $typeFacet->getLabel());
+        self::assertCount(1, $typeFacet->getValues());
+        self::assertSame('news', $typeFacet->getValues()[0]->value);
+        self::assertSame(1, $typeFacet->getValues()[0]->count);
     }
 
     #[Test]

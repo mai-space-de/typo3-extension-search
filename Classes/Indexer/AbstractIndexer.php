@@ -9,7 +9,9 @@ use Maispace\MaiSearch\Domain\Model\SearchDocumentInput;
 use Maispace\MaiSearch\Domain\Service\SearchIndexerInterface;
 use Maispace\MaiSearch\Event\AfterDocumentBuiltEvent;
 use Maispace\MaiSearch\Event\BeforeDocumentBuiltEvent;
+use Maispace\MaiSearch\Service\AnswerCacheService;
 use Maispace\MaiSearch\Service\BackendRegistry;
+use Maispace\MaiSearch\Service\ContentHashService;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
@@ -27,6 +29,10 @@ abstract class AbstractIndexer implements SearchIndexerInterface
 
     protected ?EventDispatcherInterface $eventDispatcher = null;
 
+    protected ?ContentHashService $contentHashService = null;
+
+    protected ?AnswerCacheService $answerCacheService = null;
+
     public function injectBackendRegistry(BackendRegistry $backendRegistry): void
     {
         $this->backendRegistry = $backendRegistry;
@@ -35,6 +41,16 @@ abstract class AbstractIndexer implements SearchIndexerInterface
     public function injectEventDispatcher(EventDispatcherInterface $eventDispatcher): void
     {
         $this->eventDispatcher = $eventDispatcher;
+    }
+
+    public function injectContentHashService(ContentHashService $contentHashService): void
+    {
+        $this->contentHashService = $contentHashService;
+    }
+
+    public function injectAnswerCacheService(AnswerCacheService $answerCacheService): void
+    {
+        $this->answerCacheService = $answerCacheService;
     }
 
     /**
@@ -68,7 +84,32 @@ abstract class AbstractIndexer implements SearchIndexerInterface
             $document = $document->withAdditionalField('languageCode', $languageCode);
         }
 
+        $this->trackContentChange($document);
+
         $this->backendRegistry->getActive()->indexDocument($document);
+    }
+
+    /**
+     * Gates RAG answer-cache invalidation on an actual content change (SPEC-v2.md
+     * Phase 7 addendum) — a save that only touches metadata (timestamps, workspace
+     * state, ...) must not force a cache miss for every cached answer that used this
+     * document as context. ContentHashService/AnswerCacheService are optional
+     * (nullable, setter-injected like eventDispatcher above) so indexer tests that
+     * don't need this side effect don't have to wire it up.
+     */
+    private function trackContentChange(SearchDocumentInput $document): void
+    {
+        if ($this->contentHashService === null || $this->answerCacheService === null) {
+            return;
+        }
+
+        $newHash = $this->contentHashService->computeContentHash($document->content);
+        if (!$this->contentHashService->hasContentChanged($document->type, $document->uid, $newHash)) {
+            return;
+        }
+
+        $this->contentHashService->setContentHash($document->type, $document->uid, $newHash);
+        $this->answerCacheService->invalidateForUrl($document->url);
     }
 
     /**
@@ -113,6 +154,8 @@ abstract class AbstractIndexer implements SearchIndexerInterface
 
     protected function removeDocument(int $uid): void
     {
+        $this->contentHashService?->removeContentHash($this->getType(), $uid);
+
         $this->backendRegistry->getActive()->removeDocument($this->getType(), $uid);
     }
 

@@ -18,6 +18,16 @@ use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
  */
 readonly class SearchRequest
 {
+    /**
+     * @var array<string, string>
+     */
+    public array $filters;
+
+    /**
+     * @param ?string $type Convenience constructor arg for the one facet field
+     *                      that exists today; mirrored into $filters so backends
+     *                      can loop over filters generically (SPEC-v2.md Phase 6).
+     */
     public function __construct(
         public string $query,
         public int $limit = 20,
@@ -25,5 +35,7 @@ readonly class SearchRequest
         public ?SiteLanguage $language = null,
         public ?string $type = null,
         public bool $ragEnabled = false,
-    ) {}
+    ) {
+        $this->filters = $type !== null ? ['type' => $type] : [];
+    }
 }

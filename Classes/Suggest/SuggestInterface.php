@@ -10,6 +10,13 @@ namespace Maispace\MaiSearch\Suggest;
 interface SuggestInterface
 {
     /**
+     * Stable identifier matching SearchBackendInterface::getIdentifier() — lets
+     * SuggestRegistry resolve the suggest implementation for whichever backend is
+     * currently active, e.g. 'solr', 'meilisearch', 'indexed_search'.
+     */
+    public function getIdentifier(): string;
+
+    /**
      * Get search suggestions for a partial query.
      *
      * @param string $query Partial search query

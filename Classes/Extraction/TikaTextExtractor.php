@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Maispace\MaiSearch\Extraction;
 
 use TYPO3\CMS\Core\Resource\FileInterface;
-use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Text extractor using Apache Tika (via ext-tika if available).
@@ -79,7 +78,11 @@ class TikaTextExtractor implements TextExtractorInterface
         }
 
         try {
-            return GeneralUtility::makeInstance($tikaClass);
+            // Plain `new`, not GeneralUtility::makeInstance(): this is a foreign,
+            // optionally-installed vendor class we don't own and don't want
+            // XCLASS-overridable — makeInstance()'s class-string<T> generic can't
+            // be satisfied for a class PHPStan has no reflection data for anyway.
+            return new $tikaClass();
         } catch (\Throwable) {
             return null;
         }

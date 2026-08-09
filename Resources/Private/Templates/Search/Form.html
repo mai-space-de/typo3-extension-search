@@ -16,14 +16,21 @@
                     </div>
                 </f:if>
             </f:form.validationResults>
-            <div class="search-form__field">
+            <div
+                class="search-form__field"
+                data-search-suggest="{f:if(condition: '{suggestEnabled}', then: '1')}"
+                data-search-suggest-url="{f:uri.action(action: 'suggest')}"
+            >
                 <f:form.textfield
                     name="query"
                     value="{query}"
                     placeholder="{f:translate(key: 'search.placeholder', default: 'Search...')}"
                     class="search-form__input"
-                    additionalAttributes="{autocomplete: 'off', 'data-testid': 'search-input'}"
+                    additionalAttributes="{autocomplete: 'off', 'data-testid': 'search-input', 'data-search-suggest-input': '1'}"
                 />
+                <f:if condition="{suggestEnabled}">
+                    <ul class="search-suggest__list" data-search-suggest-list hidden="hidden" role="listbox"></ul>
+                </f:if>
                 <f:form.hidden
                     name="history"
                     value="{historyPayload}"

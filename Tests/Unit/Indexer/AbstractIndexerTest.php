@@ -8,10 +8,13 @@ use Maispace\MaiSearch\Domain\Model\IndexingContext;
 use Maispace\MaiSearch\Domain\Model\SearchDocumentInput;
 use Maispace\MaiSearch\Domain\Service\SearchBackendInterface;
 use Maispace\MaiSearch\Indexer\AbstractIndexer;
+use Maispace\MaiSearch\Service\AnswerCacheService;
 use Maispace\MaiSearch\Service\BackendRegistry;
+use Maispace\MaiSearch\Service\ContentHashService;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
 
 final class AbstractIndexerTest extends TestCase
 {
@@ -169,5 +172,97 @@ final class AbstractIndexerTest extends TestCase
     public function getBoostDefaultsToOne(): void
     {
         self::assertSame(1.0, $this->subject->getBoost('test'));
+    }
+
+    // ── content-hash / answer-cache wiring (SPEC-v2.md Phase 7) ──────────────
+
+    #[Test]
+    public function sendDocumentSkipsHashTrackingWhenServicesAreNotInjected(): void
+    {
+        $document = $this->subject->publicCreateDocument(
+            type: 'news',
+            uid: 1,
+            title: 'Title',
+            content: 'Content',
+            url: '/news/1',
+            crdate: new \DateTimeImmutable('2026-05-23'),
+            boost: 1.0,
+        );
+
+        $this->activeBackend->expects(self::once())->method('indexDocument');
+
+        // No injectContentHashService()/injectAnswerCacheService() call — must not error.
+        $this->subject->publicSendDocument($document);
+    }
+
+    #[Test]
+    public function sendDocumentUpdatesHashAndInvalidatesCacheOnRealContentChange(): void
+    {
+        $document = $this->subject->publicCreateDocument(
+            type: 'news',
+            uid: 1,
+            title: 'Title',
+            content: 'new content',
+            url: '/news/1',
+            crdate: new \DateTimeImmutable('2026-05-23'),
+            boost: 1.0,
+        );
+
+        $contentHashService = $this->createMock(ContentHashService::class);
+        $newHash = hash('sha256', 'new content');
+        $contentHashService->method('computeContentHash')->with('new content')->willReturn($newHash);
+        $contentHashService->method('hasContentChanged')->with('news', 1, $newHash)->willReturn(true);
+        $contentHashService->expects(self::once())->method('setContentHash')->with('news', 1, $newHash);
+
+        $cache = $this->createMock(FrontendInterface::class);
+        $cache->expects(self::once())->method('flushByTag')->with('context_' . md5('/news/1'));
+        $answerCacheService = new AnswerCacheService($cache);
+
+        $this->subject->injectContentHashService($contentHashService);
+        $this->subject->injectAnswerCacheService($answerCacheService);
+
+        $this->activeBackend->expects(self::once())->method('indexDocument')->with($document);
+
+        $this->subject->publicSendDocument($document);
+    }
+
+    #[Test]
+    public function sendDocumentSkipsCacheInvalidationWhenContentIsUnchanged(): void
+    {
+        $document = $this->subject->publicCreateDocument(
+            type: 'news',
+            uid: 1,
+            title: 'Title',
+            content: 'same content',
+            url: '/news/1',
+            crdate: new \DateTimeImmutable('2026-05-23'),
+            boost: 1.0,
+        );
+
+        $contentHashService = $this->createMock(ContentHashService::class);
+        $contentHashService->method('hasContentChanged')->willReturn(false);
+        $contentHashService->expects(self::never())->method('setContentHash');
+
+        $cache = $this->createMock(FrontendInterface::class);
+        $cache->expects(self::never())->method('flushByTag');
+        $answerCacheService = new AnswerCacheService($cache);
+
+        $this->subject->injectContentHashService($contentHashService);
+        $this->subject->injectAnswerCacheService($answerCacheService);
+
+        $this->activeBackend->expects(self::once())->method('indexDocument');
+
+        $this->subject->publicSendDocument($document);
+    }
+
+    #[Test]
+    public function removeDocumentClearsTheStoredContentHashWhenServiceIsInjected(): void
+    {
+        $contentHashService = $this->createMock(ContentHashService::class);
+        $contentHashService->expects(self::once())->method('removeContentHash')->with('test', 42);
+
+        $this->subject->injectContentHashService($contentHashService);
+
+        $this->subject->publicRemoveDocument(42);
     }
 }

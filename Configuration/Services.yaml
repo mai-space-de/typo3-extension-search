@@ -25,6 +25,22 @@ services:
     tags:
       - name: 'maispace.search.backend_registry'
 
+  Maispace\MaiSearch\Facet\FacetRegistry:
+    public: true
+    tags:
+      - name: 'maispace.search.facet_registry'
+
+  # Declares the one facet field backends currently support (SPEC-v2.md Phase 6).
+  # Empty values/activeValues: this is a declaration, not a per-query result —
+  # SolrBackend/MeilisearchBackend build a freshly-hydrated TypeFacet per search
+  # from FacetRegistry::getAllFacets(), reading only getName()/getLabel() here.
+  Maispace\MaiSearch\Facet\TypeFacet:
+    arguments:
+      $name: 'type'
+      $label: 'Type'
+    tags:
+      - name: 'maispace.search.facet_field'
+
   Maispace\MaiSearch\Backend\Solr\SolrBackend:
     tags:
       - name: 'maispace.search.backend'
@@ -36,6 +52,31 @@ services:
   Maispace\MaiSearch\Backend\Meilisearch\MeilisearchBackend:
     tags:
       - name: 'maispace.search.backend'
+
+  Maispace\MaiSearch\Service\SuggestRegistry:
+    public: true
+    tags:
+      - name: 'maispace.search.suggest_registry'
+
+  Maispace\MaiSearch\Suggest\SolrSuggest:
+    tags:
+      - name: 'maispace.search.suggest'
+
+  Maispace\MaiSearch\Suggest\MeilisearchSuggest:
+    tags:
+      - name: 'maispace.search.suggest'
+
+  Maispace\MaiSearch\Suggest\IndexedSearchSuggest:
+    tags:
+      - name: 'maispace.search.suggest'
+
+  # Resolves to whichever backend is currently active (SuggestRegistry mirrors
+  # BackendRegistry's own activeBackend lookup) rather than Symfony's "only one
+  # implementation exists" auto-wiring rule, which stops working the moment a
+  # second SuggestInterface implementation exists — same lesson already applied
+  # to RerankerInterface below.
+  Maispace\MaiSearch\Suggest\SuggestInterface:
+    factory: ['@Maispace\MaiSearch\Service\SuggestRegistry', 'getActive']
 
   Maispace\MaiSearch\Service\ProviderRegistry:
     public: true

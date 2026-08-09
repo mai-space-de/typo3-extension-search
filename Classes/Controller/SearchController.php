@@ -58,6 +58,7 @@ class SearchController extends ActionController
     public function resultsAction(string $query = '', string $type = '', int $page = 1, string $history = ''): ResponseInterface
     {
         $ragEnabled = $this->resolveRagEnabled();
+        $suggestEnabled = $this->resolveSuggestEnabled();
         $perPage = max(1, (int) ($this->settings['resultsPerPage'] ?? 20));
         $page = max(1, $page);
         $typeFilter = $type !== '' ? $type : null;
@@ -67,9 +68,14 @@ class SearchController extends ActionController
             $this->addJsFile('mai_search_stream', 'EXT:mai_search/Resources/Public/JavaScript/search-stream.js');
         }
 
+        if ($suggestEnabled) {
+            $this->addJsFile('mai_search_suggest', 'EXT:mai_search/Resources/Public/JavaScript/search-suggest.js');
+        }
+
         if (trim($query) === '') {
             $this->view->assignMultiple([
                 'ragEnabled' => $ragEnabled,
+                'suggestEnabled' => $suggestEnabled,
                 'query' => $query,
                 'type' => $typeFilter,
                 'page' => $page,
@@ -117,14 +123,14 @@ class SearchController extends ActionController
             'type' => $typeFilter,
             'results' => $resultPage->results,
             'count' => $resultPage->total,
-            'types' => $resultPage->types,
-            'typeTotal' => array_sum($resultPage->types),
+            'facets' => $resultPage->facets,
             'page' => $resultPage->page,
             'perPage' => $resultPage->perPage,
             'totalPages' => $resultPage->getTotalPages(),
             'prevPage' => $resultPage->page > 1 ? $resultPage->page - 1 : null,
             'nextPage' => $resultPage->page < $resultPage->getTotalPages() ? $resultPage->page + 1 : null,
             'ragEnabled' => $ragEnabled,
+            'suggestEnabled' => $suggestEnabled,
             'synthesisResult' => $synthesisResult,
             'ragStreaming' => $streamingActive,
             'historyPayload' => $historyPayload,
@@ -143,6 +149,11 @@ class SearchController extends ActionController
     private function resolveRagEnabled(): bool
     {
         return (bool) ($this->settings['ragEnabled'] ?? false);
+    }
+
+    private function resolveSuggestEnabled(): bool
+    {
+        return (bool) ($this->settings['searchSuggestEnabled'] ?? false);
     }
 
     private function decodeHistory(string $history): ConversationHistory
@@ -169,7 +180,7 @@ class SearchController extends ActionController
     #[RateLimit(limit: 60, interval: '1 minute')]
     public function suggestAction(string $query = ''): ResponseInterface
     {
-        if ($this->suggestService === null || trim($query) === '') {
+        if (!$this->resolveSuggestEnabled() || $this->suggestService === null || trim($query) === '') {
             return new JsonResponse(['suggestions' => []]);
         }
 

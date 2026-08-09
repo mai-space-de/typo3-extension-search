@@ -16,13 +16,21 @@
                     </div>
                 </f:if>
             </f:form.validationResults>
-            <div class="search-form__field">
+            <div
+                class="search-form__field"
+                data-search-suggest="{f:if(condition: '{suggestEnabled}', then: '1')}"
+                data-search-suggest-url="{f:uri.action(action: 'suggest')}"
+            >
                 <f:form.textfield
                     name="query"
                     value="{query}"
                     placeholder="{f:translate(key: 'search.placeholder', default: 'Search...')}"
                     class="search-form__input"
+                    additionalAttributes="{autocomplete: 'off', 'data-search-suggest-input': '1'}"
                 />
+                <f:if condition="{suggestEnabled}">
+                    <ul class="search-suggest__list" data-search-suggest-list hidden="hidden" role="listbox"></ul>
+                </f:if>
                 <f:if condition="{type}">
                     <f:form.hidden name="type" value="{type}" />
                 </f:if>
@@ -85,8 +93,8 @@
             </div>
         </f:if>
 
-        <f:if condition="{types}">
-            <nav class="search-filters" aria-label="{f:translate(key: 'search.filters.label', default: 'Filter by type')}">
+        <f:for each="{facets}" as="facet">
+            <nav class="search-filters" aria-label="{f:translate(key: 'search.filters.label', default: 'Filter by {0}', arguments: '{0: facet.label}')}">
                 <ul class="search-filters__list">
                     <li class="search-filters__item">
                         <f:link.action
@@ -95,24 +103,24 @@
                             class="search-filters__link{f:if(condition: '!{type}', then: ' is-active')}"
                         >
                             <f:translate key="search.filters.all" default="All" />
-                            <span class="search-filters__count">({typeTotal})</span>
+                            <span class="search-filters__count">({facet.total})</span>
                         </f:link.action>
                     </li>
-                    <f:for each="{types}" as="typeCount" key="typeKey">
+                    <f:for each="{facet.values}" as="facetValue">
                         <li class="search-filters__item">
                             <f:link.action
                                 action="results"
-                                arguments="{query: query, type: typeKey, page: 1}"
-                                class="search-filters__link{f:if(condition: '{type} == {typeKey}', then: ' is-active')}"
+                                arguments="{query: query, type: facetValue.value, page: 1}"
+                                class="search-filters__link{f:if(condition: '{facetValue.active}', then: ' is-active')}"
                             >
-                                {typeKey}
-                                <span class="search-filters__count">({typeCount})</span>
+                                {facetValue.label}
+                                <span class="search-filters__count">({facetValue.count})</span>
                             </f:link.action>
                         </li>
                     </f:for>
                 </ul>
             </nav>
-        </f:if>
+        </f:for>
 
         <div class="search-results" data-testid="search-results">
             <p class="search-results__count">

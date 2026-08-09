@@ -41,4 +41,20 @@ class SearchRequestTest extends TestCase
         self::assertNull($request->type);
         self::assertFalse($request->ragEnabled);
     }
+
+    #[Test]
+    public function mirrorsTypeIntoFiltersWhenGiven(): void
+    {
+        $request = new SearchRequest(query: 'gymnastics', type: 'news');
+
+        self::assertSame(['type' => 'news'], $request->filters);
+    }
+
+    #[Test]
+    public function filtersAreEmptyWhenNoTypeGiven(): void
+    {
+        $request = new SearchRequest(query: 'gymnastics');
+
+        self::assertSame([], $request->filters);
+    }
 }

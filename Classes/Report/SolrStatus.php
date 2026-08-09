@@ -6,12 +6,15 @@ namespace Maispace\MaiSearch\Report;
 
 use Maispace\MaiSearch\Domain\Solr\ConnectionFactory;
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
-use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Reports\Status;
 use TYPO3\CMS\Reports\StatusProviderInterface;
 
 class SolrStatus implements StatusProviderInterface
 {
+    public function __construct(
+        private readonly ConnectionFactory $connectionFactory,
+    ) {}
+
     public function getLabel(): string
     {
         return 'Apache Solr';
@@ -22,14 +25,13 @@ class SolrStatus implements StatusProviderInterface
         $statuses = [];
 
         try {
-            $connectionFactory = GeneralUtility::makeInstance(ConnectionFactory::class);
-            $coreMapping = $connectionFactory->getCoreMapping();
+            $coreMapping = $this->connectionFactory->getCoreMapping();
 
             if ($coreMapping === []) {
-                $statuses[] = $this->checkCore('core_en', $connectionFactory);
+                $statuses[] = $this->checkCore('core_en', $this->connectionFactory);
             } else {
                 foreach ($coreMapping as $languageCode => $core) {
-                    $statuses[] = $this->checkCore($core, $connectionFactory);
+                    $statuses[] = $this->checkCore($core, $this->connectionFactory);
                 }
             }
         } catch (\Throwable $e) {

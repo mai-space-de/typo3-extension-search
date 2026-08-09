@@ -13,6 +13,11 @@ final class SolrSuggest implements SuggestInterface
         private readonly ConnectionFactory $connectionFactory,
     ) {}
 
+    public function getIdentifier(): string
+    {
+        return 'solr';
+    }
+
     public function getSuggestions(string $query, int $limit = 10): array
     {
         if (trim($query) === '') {
@@ -23,7 +28,7 @@ final class SolrSuggest implements SuggestInterface
             $connection = $this->connectionFactory->getConnection();
 
             $searchQuery = new SearchQuery();
-            $searchQuery->setQuery('title_s:' . $query . '*')
+            $searchQuery->setQuery('title_s:' . $this->escapeQuery($query) . '*')
                 ->setRows($limit);
 
             $response = $connection->search($searchQuery);
@@ -40,5 +45,19 @@ final class SolrSuggest implements SuggestInterface
         } catch (\Throwable) {
             return [];
         }
+    }
+
+    /**
+     * Mirrors SolrBackend::buildSolrQuery()'s escaping — a prefix query built by
+     * naive string concatenation lets unescaped Solr special characters break the
+     * query syntax (or, unescaped, be interpreted as query operators).
+     */
+    private function escapeQuery(string $query): string
+    {
+        return preg_replace(
+            '/([+\-&|!(){}[\]^"~*?:\\\\\\/])/',
+            '\\\\$1',
+            trim($query),
+        ) ?? '';
     }
 }

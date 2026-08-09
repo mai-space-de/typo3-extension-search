@@ -10,6 +10,10 @@ use Maispace\MaiSearch\Domain\Model\BackendCapabilities;
 use Maispace\MaiSearch\Domain\Model\SearchDocumentInput;
 use Maispace\MaiSearch\Domain\Model\SearchRequest;
 use Maispace\MaiSearch\Domain\Service\SearchBackendInterface;
+use Maispace\MaiSearch\Facet\FacetInterface;
+use Maispace\MaiSearch\Facet\FacetRegistry;
+use Maispace\MaiSearch\Facet\FacetValue;
+use Maispace\MaiSearch\Facet\TypeFacet;
 use Maispace\MaiSearch\Service\ResultFormatterRegistry;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
@@ -44,6 +48,7 @@ final class MeilisearchBackend implements SearchBackendInterface, LoggerAwareInt
         private readonly ConnectionFactory $connectionFactory,
         private readonly IndexNameResolver $indexNameResolver,
         private readonly ResultFormatterRegistry $resultFormatterRegistry,
+        private readonly FacetRegistry $facetRegistry,
     ) {}
 
     public function getIdentifier(): string
@@ -83,7 +88,7 @@ final class MeilisearchBackend implements SearchBackendInterface, LoggerAwareInt
             'showRankingScore' => true,
         ];
 
-        $normalizedType = $this->normalizeTypeFilter($request->type);
+        $normalizedType = $this->normalizeTypeFilter($request->filters[self::TYPE_FILTER_ATTRIBUTE] ?? null);
         if ($normalizedType !== null) {
             $searchParameters['filter'] = sprintf('%s = "%s"', self::TYPE_FILTER_ATTRIBUTE, $normalizedType);
         }
@@ -93,10 +98,43 @@ final class MeilisearchBackend implements SearchBackendInterface, LoggerAwareInt
         return new SearchResultPage(
             $this->buildResults($response),
             $response->estimatedTotalHits,
-            $response->facetDistribution[self::TYPE_FILTER_ATTRIBUTE] ?? [],
+            $this->buildFacets($response->facetDistribution[self::TYPE_FILTER_ATTRIBUTE] ?? [], $normalizedType),
             $page,
             $limit,
         );
+    }
+
+    /**
+     * Translates FacetRegistry's declarations into hydrated facet results for this
+     * query (SPEC-v2.md Phase 6) — only 'type' is requested as a Meilisearch facet
+     * above, so any other declared facet is silently skipped rather than half-rendered.
+     *
+     * @param array<string, int> $counts
+     * @return list<FacetInterface>
+     */
+    private function buildFacets(array $counts, ?string $activeType): array
+    {
+        $facets = [];
+
+        foreach ($this->facetRegistry->getAllFacets() as $declaration) {
+            if ($declaration->getName() !== self::TYPE_FILTER_ATTRIBUTE) {
+                continue;
+            }
+
+            $values = [];
+            foreach ($counts as $value => $count) {
+                $values[] = new FacetValue((string) $value, (string) $value, $count, (string) $value === $activeType);
+            }
+
+            $facets[] = new TypeFacet(
+                $declaration->getName(),
+                $declaration->getLabel(),
+                $values,
+                $activeType !== null ? [$activeType] : [],
+            );
+        }
+
+        return $facets;
     }
 
     public function indexDocument(SearchDocumentInput $document): void

@@ -10,6 +10,7 @@ use Maispace\MaiSearch\Domain\Dto\SynthesisResult;
 use Maispace\MaiSearch\Domain\Model\ChatMessage;
 use Maispace\MaiSearch\Domain\Model\ChatRequest;
 use Maispace\MaiSearch\Domain\Model\ConversationHistory;
+use Maispace\MaiSearch\Service\AnswerCacheService;
 use Maispace\MaiSearch\Service\ProviderRegistry;
 
 /**
@@ -39,6 +40,7 @@ final class SearchSynthesisService
 
     public function __construct(
         private readonly ProviderRegistry $providerRegistry,
+        private readonly AnswerCacheService $answerCacheService,
     ) {}
 
     /**
@@ -63,9 +65,19 @@ final class SearchSynthesisService
             return SynthesisResult::empty();
         }
 
+        $contextUrls = $this->contextUrls($context);
+        $historyPayload = $history?->toArray() ?? [];
+        $sources = $this->buildSources($context);
+
+        $cachedAnswer = $this->answerCacheService->get($query, $contextUrls, $historyPayload);
+        if ($cachedAnswer !== null) {
+            return new SynthesisResult($cachedAnswer, $sources);
+        }
+
         $request = $this->buildChatRequest($query, $context, $history);
         $answer = $this->providerRegistry->getActiveChatProvider()->complete($request)->content;
-        $sources = $this->buildSources($context);
+
+        $this->answerCacheService->set($query, $contextUrls, $historyPayload, $answer);
 
         return new SynthesisResult($answer, $sources);
     }
@@ -109,6 +121,15 @@ final class SearchSynthesisService
         }
 
         return $sources;
+    }
+
+    /**
+     * @param SearchResult[] $context
+     * @return list<string>
+     */
+    private function contextUrls(array $context): array
+    {
+        return array_map(static fn(SearchResult $result): string => $result->url, $context);
     }
 
     /**

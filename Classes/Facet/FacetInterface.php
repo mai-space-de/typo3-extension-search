@@ -24,4 +24,11 @@ interface FacetInterface
      * @return string[] Active facet values
      */
     public function getActiveValues(): array;
+
+    /**
+     * Sum of all value counts — the "All" filter's document count, which (Solr's
+     * exclude-tagged facet.field / Meilisearch's default facet behavior) reflects
+     * every document matching the query regardless of which value is active.
+     */
+    public function getTotal(): int;
 }

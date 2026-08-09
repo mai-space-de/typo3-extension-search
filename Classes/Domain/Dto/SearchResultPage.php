@@ -4,19 +4,21 @@ declare(strict_types=1);
 
 namespace Maispace\MaiSearch\Domain\Dto;
 
+use Maispace\MaiSearch\Facet\FacetInterface;
+
 /**
- * Paginated search result set with type facet counts for filter UI.
+ * Paginated search result set with facet counts for filter UI (SPEC-v2.md Phase 6).
  */
 readonly class SearchResultPage
 {
     /**
      * @param list<SearchResult> $results
-     * @param array<string, int> $types type => document count for current query (without type filter)
+     * @param list<FacetInterface> $facets
      */
     public function __construct(
         public array $results,
         public int $total,
-        public array $types = [],
+        public array $facets = [],
         public int $page = 1,
         public int $perPage = 20,
     ) {}
@@ -28,5 +30,16 @@ readonly class SearchResultPage
         }
 
         return (int) ceil($this->total / $this->perPage);
+    }
+
+    public function getFacet(string $name): ?FacetInterface
+    {
+        foreach ($this->facets as $facet) {
+            if ($facet->getName() === $name) {
+                return $facet;
+            }
+        }
+
+        return null;
     }
 }

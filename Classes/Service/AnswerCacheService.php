@@ -12,10 +12,19 @@ use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
  * Cache keys are based on a hash of the query + resolved context IDs + conversation history,
  * ensuring that identical requests return cached answers while content changes invalidate
  * the cache appropriately.
+ *
+ * Invalidation is tagged by context document identity (each context result's URL — the
+ * only stable identifier SearchResult exposes, since its DTO shape is a frozen external
+ * contract), not by content-hash value: a content hash rotates every time a document
+ * changes, so tagging cache entries with today's hash would never match the value an
+ * invalidation call fires with tomorrow. AbstractIndexer calls invalidateForUrl() with
+ * the same URL a SearchResult later exposes for that document, only when
+ * ContentHashService confirms the content actually changed.
  */
 final class AnswerCacheService
 {
     private const string CACHE_IDENTIFIER_PREFIX = 'maisearch_answer_';
+    private const string CONTEXT_TAG_PREFIX = 'context_';
     private const int DEFAULT_TTL = 3600; // 1 hour
 
     public function __construct(
@@ -42,15 +51,21 @@ final class AnswerCacheService
     public function set(string $query, array $contextIds, array $history, string $answer, int $ttl = self::DEFAULT_TTL): void
     {
         $cacheKey = $this->buildCacheKey($query, $contextIds, $history);
-        $this->cache->set($cacheKey, $answer, ['maisearch_answer'], $ttl);
+
+        $tags = ['maisearch_answer'];
+        foreach ($contextIds as $contextId) {
+            $tags[] = self::CONTEXT_TAG_PREFIX . md5($contextId);
+        }
+
+        $this->cache->set($cacheKey, $answer, $tags, $ttl);
     }
 
     /**
-     * Invalidate all cached answers for a specific content hash.
+     * Invalidate all cached answers that used the given document (by URL) as context.
      */
-    public function invalidateByContentHash(string $contentHash): void
+    public function invalidateForUrl(string $url): void
     {
-        $this->cache->flushByTag('content_hash_' . $contentHash);
+        $this->cache->flushByTag(self::CONTEXT_TAG_PREFIX . md5($url));
     }
 
     /**

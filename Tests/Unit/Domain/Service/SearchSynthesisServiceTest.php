@@ -12,10 +12,12 @@ use Maispace\MaiSearch\Domain\Model\ChatResponse;
 use Maispace\MaiSearch\Domain\Model\ConversationHistory;
 use Maispace\MaiSearch\Domain\Service\ChatProviderInterface;
 use Maispace\MaiSearch\Domain\Service\SearchSynthesisService;
+use Maispace\MaiSearch\Service\AnswerCacheService;
 use Maispace\MaiSearch\Service\ProviderRegistry;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
 
 final class SearchSynthesisServiceTest extends TestCase
 {
@@ -28,7 +30,15 @@ final class SearchSynthesisServiceTest extends TestCase
         $this->providerRegistry = $this->createMock(ProviderRegistry::class);
         $this->chatProvider = $this->createMock(ChatProviderInterface::class);
         $this->providerRegistry->method('getActiveChatProvider')->willReturn($this->chatProvider);
-        $this->service = new SearchSynthesisService($this->providerRegistry);
+
+        // AnswerCacheService is final and can't be mocked directly — wrap a mocked
+        // cache frontend instead, always missing so existing behavior (always call
+        // the provider) is preserved for tests that don't cover caching itself.
+        $cache = $this->createMock(FrontendInterface::class);
+        $cache->method('get')->willReturn(false);
+        $answerCacheService = new AnswerCacheService($cache);
+
+        $this->service = new SearchSynthesisService($this->providerRegistry, $answerCacheService);
     }
 
     // ── disabled-flag / empty-context short-circuits ─────────────────────────
@@ -282,6 +292,55 @@ final class SearchSynthesisServiceTest extends TestCase
         self::assertSame('prior question', $request->messages[1]->content);
         self::assertSame('user', $request->messages[2]->role);
         self::assertStringContainsString('query', $request->messages[2]->content);
+    }
+
+    // ── answer cache (SPEC-v2.md Phase 7) ─────────────────────────────────────
+
+    #[Test]
+    public function synthesiseReturnsCachedAnswerWithoutCallingProviderOnCacheHit(): void
+    {
+        $cache = $this->createMock(FrontendInterface::class);
+        $cache->method('get')->willReturn('cached answer');
+        $service = new SearchSynthesisService($this->providerRegistry, new AnswerCacheService($cache));
+
+        $this->chatProvider->expects(self::never())->method('complete');
+
+        $result = $service->synthesise('query', [$this->makeResult(url: '/a')], true);
+
+        self::assertSame('cached answer', $result->answer);
+    }
+
+    #[Test]
+    public function synthesiseStillReturnsSourcesOnCacheHit(): void
+    {
+        $cache = $this->createMock(FrontendInterface::class);
+        $cache->method('get')->willReturn('cached answer');
+        $service = new SearchSynthesisService($this->providerRegistry, new AnswerCacheService($cache));
+
+        $result = $service->synthesise('query', [$this->makeResult(title: 'A', url: '/a')], true);
+
+        self::assertCount(1, $result->sources);
+        self::assertSame('A', $result->sources[0]->title);
+    }
+
+    #[Test]
+    public function synthesiseCallsProviderAndStoresResultOnCacheMiss(): void
+    {
+        $this->chatProvider->method('complete')->willReturn(new ChatResponse('fresh answer'));
+
+        $cache = $this->createMock(FrontendInterface::class);
+        $cache->method('get')->willReturn(false);
+        $cache->expects(self::once())->method('set')->with(
+            self::isType('string'),
+            'fresh answer',
+            self::anything(),
+            self::anything(),
+        );
+        $service = new SearchSynthesisService($this->providerRegistry, new AnswerCacheService($cache));
+
+        $result = $service->synthesise('query', [$this->makeResult(url: '/a')], true);
+
+        self::assertSame('fresh answer', $result->answer);
     }
 
     private function makeResult(

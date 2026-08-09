@@ -34,5 +34,11 @@ plugin.tx_maisearch {
         # also be reachable from SearchStreamMiddleware, a plain PSR-15 middleware with no
         # TypoScript Frontend Controller context available, unlike this per-plugin setting.
         ragEnabled = 0
+
+        # Live search suggestions/autocomplete (SPEC-v2.md Phase 8), optional per FEATURES.md.
+        # Unlike ragRerankEnabled/ragStreamingEnabled, suggestAction() is a normal Extbase
+        # action with TypoScript settings available, so this lives here rather than in
+        # Extension Configuration.
+        searchSuggestEnabled = 0
     }
 }

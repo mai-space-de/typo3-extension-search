@@ -6,12 +6,15 @@ namespace Maispace\MaiSearch\Report;
 
 use Maispace\MaiSearch\Backend\Meilisearch\ConnectionFactory;
 use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
-use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Reports\Status;
 use TYPO3\CMS\Reports\StatusProviderInterface;
 
 class MeilisearchStatus implements StatusProviderInterface
 {
+    public function __construct(
+        private readonly ConnectionFactory $connectionFactory,
+    ) {}
+
     public function getLabel(): string
     {
         return 'Meilisearch';
@@ -22,8 +25,7 @@ class MeilisearchStatus implements StatusProviderInterface
         $statuses = [];
 
         try {
-            $connectionFactory = GeneralUtility::makeInstance(ConnectionFactory::class);
-            $client = $connectionFactory->getClient();
+            $client = $this->connectionFactory->getClient();
 
             $health = $client->health();
 

@@ -16,6 +16,10 @@ use Maispace\MaiSearch\Domain\Solr\Document;
 use Maispace\MaiSearch\Domain\Solr\SchemaManager;
 use Maispace\MaiSearch\Domain\Solr\SearchQuery;
 use Maispace\MaiSearch\Domain\Solr\SearchResponse;
+use Maispace\MaiSearch\Facet\FacetInterface;
+use Maispace\MaiSearch\Facet\FacetRegistry;
+use Maispace\MaiSearch\Facet\FacetValue;
+use Maispace\MaiSearch\Facet\TypeFacet;
 use Maispace\MaiSearch\Service\ProviderRegistry;
 use Maispace\MaiSearch\Service\ResultFormatterRegistry;
 
@@ -41,6 +45,7 @@ final class SolrBackend implements SearchBackendInterface
         private readonly ResultFormatterRegistry $resultFormatterRegistry,
         private readonly IndexManagementService $indexManagementService,
         private readonly ProviderRegistry $providerRegistry,
+        private readonly FacetRegistry $facetRegistry,
     ) {}
 
     public function getIdentifier(): string
@@ -74,7 +79,7 @@ final class SolrBackend implements SearchBackendInterface
         $solrQuery->setStart($request->offset);
         $solrQuery->addFacetField(self::TYPE_FACET_KEY, 'type_s', ['typefilter']);
 
-        $normalizedType = $this->normalizeTypeFilter($request->type);
+        $normalizedType = $this->normalizeTypeFilter($request->filters[self::TYPE_FACET_KEY] ?? null);
         if ($normalizedType !== null) {
             $solrQuery->addFilterQuery('type_s:' . $normalizedType, 'typefilter');
         }
@@ -86,10 +91,43 @@ final class SolrBackend implements SearchBackendInterface
         return new SearchResultPage(
             $this->buildResults($response),
             $response->getNumFound(),
-            $response->getFacetCountsFor(self::TYPE_FACET_KEY),
+            $this->buildFacets($response->getFacetCountsFor(self::TYPE_FACET_KEY), $normalizedType),
             $page,
             $limit,
         );
+    }
+
+    /**
+     * Translates FacetRegistry's declarations into hydrated facet results for this
+     * query (SPEC-v2.md Phase 6) — only 'type' has a Solr facet.field wired above,
+     * so any other declared facet is silently skipped rather than half-rendered.
+     *
+     * @param array<string, int> $counts
+     * @return list<FacetInterface>
+     */
+    private function buildFacets(array $counts, ?string $activeType): array
+    {
+        $facets = [];
+
+        foreach ($this->facetRegistry->getAllFacets() as $declaration) {
+            if ($declaration->getName() !== self::TYPE_FACET_KEY) {
+                continue;
+            }
+
+            $values = [];
+            foreach ($counts as $value => $count) {
+                $values[] = new FacetValue((string) $value, (string) $value, $count, (string) $value === $activeType);
+            }
+
+            $facets[] = new TypeFacet(
+                $declaration->getName(),
+                $declaration->getLabel(),
+                $values,
+                $activeType !== null ? [$activeType] : [],
+            );
+        }
+
+        return $facets;
     }
 
     public function indexDocument(SearchDocumentInput $document): void

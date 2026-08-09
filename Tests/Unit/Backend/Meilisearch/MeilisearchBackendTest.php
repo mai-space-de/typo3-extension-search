@@ -15,6 +15,8 @@ use Maispace\MaiSearch\Domain\Model\BackendCapabilities;
 use Maispace\MaiSearch\Domain\Model\SearchDocumentInput;
 use Maispace\MaiSearch\Domain\Model\SearchRequest;
 use Maispace\MaiSearch\Domain\Service\SearchResultFormatterInterface;
+use Maispace\MaiSearch\Facet\FacetRegistry;
+use Maispace\MaiSearch\Facet\TypeFacet;
 use Maispace\MaiSearch\Service\ResultFormatterRegistry;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -27,6 +29,7 @@ final class MeilisearchBackendTest extends TestCase
     private ConnectionFactory&MockObject $connectionFactory;
     private IndexNameResolver $indexNameResolver;
     private ResultFormatterRegistry&MockObject $resultFormatterRegistry;
+    private FacetRegistry $facetRegistry;
     private MeilisearchClientInterface&MockObject $client;
     private MeilisearchBackend $backend;
 
@@ -35,6 +38,8 @@ final class MeilisearchBackendTest extends TestCase
         $this->connectionFactory = $this->createMock(ConnectionFactory::class);
         $this->indexNameResolver = new IndexNameResolver();
         $this->resultFormatterRegistry = $this->createMock(ResultFormatterRegistry::class);
+        $this->facetRegistry = new FacetRegistry();
+        $this->facetRegistry->addFacet(new TypeFacet('type', 'Type'));
         $this->client = $this->createMock(MeilisearchClientInterface::class);
         $this->connectionFactory->method('getClient')->willReturn($this->client);
 
@@ -42,6 +47,7 @@ final class MeilisearchBackendTest extends TestCase
             $this->connectionFactory,
             $this->indexNameResolver,
             $this->resultFormatterRegistry,
+            $this->facetRegistry,
         );
     }
 
@@ -145,7 +151,14 @@ final class MeilisearchBackendTest extends TestCase
         $page = $this->backend->search(new SearchRequest(query: 'gymnastics'));
 
         self::assertSame(3, $page->total);
-        self::assertSame(['news' => 2, 'page' => 1], $page->types);
+
+        $typeFacet = $page->getFacet('type');
+        self::assertNotNull($typeFacet);
+        $counts = [];
+        foreach ($typeFacet->getValues() as $value) {
+            $counts[$value->value] = $value->count;
+        }
+        self::assertSame(['news' => 2, 'page' => 1], $counts);
     }
 
     #[Test]
