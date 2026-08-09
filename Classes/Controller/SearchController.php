@@ -6,13 +6,12 @@ namespace Maispace\MaiSearch\Controller;
 
 use Maispace\MaiBase\Controller\Traits\PageRendererTrait;
 use Maispace\MaiSearch\Configuration\RagConfiguration;
+use Maispace\MaiSearch\Configuration\SuggestConfiguration;
 use Maispace\MaiSearch\Domain\Model\ConversationHistory;
 use Maispace\MaiSearch\Domain\Service\RagContextResolver;
 use Maispace\MaiSearch\Domain\Service\SearchService;
 use Maispace\MaiSearch\Domain\Service\SearchSynthesisService;
-use Maispace\MaiSearch\Suggest\SuggestInterface;
 use Psr\Http\Message\ResponseInterface;
-use TYPO3\CMS\Core\Http\JsonResponse;
 use TYPO3\CMS\Core\Page\AssetCollector;
 use TYPO3\CMS\Core\Page\PageRenderer;
 use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
@@ -28,7 +27,7 @@ class SearchController extends ActionController
         private readonly SearchSynthesisService $synthesisService,
         private readonly RagContextResolver $ragContextResolver,
         private readonly RagConfiguration $ragConfiguration,
-        private readonly ?SuggestInterface $suggestService = null,
+        private readonly SuggestConfiguration $suggestConfiguration,
     ) {}
 
     public function injectPageRenderer(PageRenderer $pageRenderer): void
@@ -58,7 +57,7 @@ class SearchController extends ActionController
     public function resultsAction(string $query = '', string $type = '', int $page = 1, string $history = ''): ResponseInterface
     {
         $ragEnabled = $this->resolveRagEnabled();
-        $suggestEnabled = $this->resolveSuggestEnabled();
+        $suggestEnabled = $this->suggestConfiguration->isEnabled();
         $perPage = max(1, (int) ($this->settings['resultsPerPage'] ?? 20));
         $page = max(1, $page);
         $typeFilter = $type !== '' ? $type : null;
@@ -151,11 +150,6 @@ class SearchController extends ActionController
         return (bool) ($this->settings['ragEnabled'] ?? false);
     }
 
-    private function resolveSuggestEnabled(): bool
-    {
-        return (bool) ($this->settings['searchSuggestEnabled'] ?? false);
-    }
-
     private function decodeHistory(string $history): ConversationHistory
     {
         return ConversationHistory::fromJson($history);
@@ -172,20 +166,5 @@ class SearchController extends ActionController
     private function encodeHistory(ConversationHistory $history): string
     {
         return $history->toJson();
-    }
-
-    /**
-     * AJAX endpoint for search suggestions/autocomplete.
-     */
-    #[RateLimit(limit: 60, interval: '1 minute')]
-    public function suggestAction(string $query = ''): ResponseInterface
-    {
-        if (!$this->resolveSuggestEnabled() || $this->suggestService === null || trim($query) === '') {
-            return new JsonResponse(['suggestions' => []]);
-        }
-
-        $suggestions = $this->suggestService->getSuggestions($query, 10);
-
-        return new JsonResponse(['suggestions' => $suggestions]);
     }
 }

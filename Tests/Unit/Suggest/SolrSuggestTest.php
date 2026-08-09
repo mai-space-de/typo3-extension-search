@@ -11,6 +11,7 @@ use Maispace\MaiSearch\Domain\Solr\SolrClientInterface;
 use Maispace\MaiSearch\Suggest\SolrSuggest;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
 
 final class SolrSuggestTest extends TestCase
 {
@@ -91,5 +92,18 @@ final class SolrSuggestTest extends TestCase
         $connectionFactory->method('getConnection')->willThrowException(new \RuntimeException('Solr unreachable'));
 
         self::assertSame([], (new SolrSuggest($connectionFactory))->getSuggestions('test'));
+    }
+
+    #[Test]
+    public function getSuggestionsPassesLanguageToConnectionFactory(): void
+    {
+        $language = $this->createMock(SiteLanguage::class);
+        $client = $this->createMock(SolrClientInterface::class);
+        $client->method('search')->willReturn(new SearchResponse([], 0));
+
+        $connectionFactory = $this->createMock(ConnectionFactory::class);
+        $connectionFactory->expects(self::once())->method('getConnection')->with($language)->willReturn($client);
+
+        (new SolrSuggest($connectionFactory))->getSuggestions('test', 10, $language);
     }
 }

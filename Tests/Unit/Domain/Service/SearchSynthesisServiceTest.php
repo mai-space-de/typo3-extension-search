@@ -17,6 +17,7 @@ use Maispace\MaiSearch\Service\ProviderRegistry;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
 
 final class SearchSynthesisServiceTest extends TestCase
@@ -36,9 +37,16 @@ final class SearchSynthesisServiceTest extends TestCase
         // the provider) is preserved for tests that don't cover caching itself.
         $cache = $this->createMock(FrontendInterface::class);
         $cache->method('get')->willReturn(false);
-        $answerCacheService = new AnswerCacheService($cache);
 
-        $this->service = new SearchSynthesisService($this->providerRegistry, $answerCacheService);
+        $this->service = new SearchSynthesisService($this->providerRegistry, $this->wrapCache($cache));
+    }
+
+    private function wrapCache(FrontendInterface $cache): AnswerCacheService
+    {
+        $cacheManager = $this->createMock(CacheManager::class);
+        $cacheManager->method('getCache')->with('maisearch_answer')->willReturn($cache);
+
+        return new AnswerCacheService($cacheManager);
     }
 
     // ── disabled-flag / empty-context short-circuits ─────────────────────────
@@ -301,7 +309,7 @@ final class SearchSynthesisServiceTest extends TestCase
     {
         $cache = $this->createMock(FrontendInterface::class);
         $cache->method('get')->willReturn('cached answer');
-        $service = new SearchSynthesisService($this->providerRegistry, new AnswerCacheService($cache));
+        $service = new SearchSynthesisService($this->providerRegistry, $this->wrapCache($cache));
 
         $this->chatProvider->expects(self::never())->method('complete');
 
@@ -315,7 +323,7 @@ final class SearchSynthesisServiceTest extends TestCase
     {
         $cache = $this->createMock(FrontendInterface::class);
         $cache->method('get')->willReturn('cached answer');
-        $service = new SearchSynthesisService($this->providerRegistry, new AnswerCacheService($cache));
+        $service = new SearchSynthesisService($this->providerRegistry, $this->wrapCache($cache));
 
         $result = $service->synthesise('query', [$this->makeResult(title: 'A', url: '/a')], true);
 
@@ -336,7 +344,7 @@ final class SearchSynthesisServiceTest extends TestCase
             self::anything(),
             self::anything(),
         );
-        $service = new SearchSynthesisService($this->providerRegistry, new AnswerCacheService($cache));
+        $service = new SearchSynthesisService($this->providerRegistry, $this->wrapCache($cache));
 
         $result = $service->synthesise('query', [$this->makeResult(url: '/a')], true);
 

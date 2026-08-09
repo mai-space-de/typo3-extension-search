@@ -8,6 +8,7 @@ use Maispace\MaiSearch\Service\AnswerCacheService;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
 
 final class AnswerCacheServiceTest extends TestCase
@@ -18,7 +19,9 @@ final class AnswerCacheServiceTest extends TestCase
     protected function setUp(): void
     {
         $this->cache = $this->createMock(FrontendInterface::class);
-        $this->subject = new AnswerCacheService($this->cache);
+        $cacheManager = $this->createMock(CacheManager::class);
+        $cacheManager->method('getCache')->with('maisearch_answer')->willReturn($this->cache);
+        $this->subject = new AnswerCacheService($cacheManager);
     }
 
     #[Test]

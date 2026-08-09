@@ -17,11 +17,11 @@ ExtensionUtility::configurePlugin(
     'MaiSearch',
     'Search',
     [
-        \Maispace\MaiSearch\Controller\SearchController::class => 'results,suggest',
+        \Maispace\MaiSearch\Controller\SearchController::class => 'results',
     ],
     [
         // Dynamic Solr results; GET query/type/page params are cacheHash-excluded below.
-        \Maispace\MaiSearch\Controller\SearchController::class => 'results,suggest',
+        \Maispace\MaiSearch\Controller\SearchController::class => 'results',
     ],
     ExtensionUtility::PLUGIN_TYPE_CONTENT_ELEMENT,
 );

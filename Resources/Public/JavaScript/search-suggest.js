@@ -1,4 +1,5 @@
 (() => {
+    const ENDPOINT = '/api/search/suggest';
     const MIN_CHARS = 2;
     const DEBOUNCE_MS = 200;
 
@@ -55,9 +56,8 @@
 
         const input = container.querySelector('[data-search-suggest-input]');
         const list = container.querySelector('[data-search-suggest-list]');
-        const baseUrl = container.dataset.searchSuggestUrl;
 
-        if (!input || !list || !baseUrl) {
+        if (!input || !list) {
             return;
         }
 
@@ -68,8 +68,7 @@
             }
 
             try {
-                const separator = baseUrl.includes('?') ? '&' : '?';
-                const response = await fetch(`${baseUrl}${separator}tx_maisearch_search%5Bquery%5D=${encodeURIComponent(query)}`);
+                const response = await fetch(`${ENDPOINT}?q=${encodeURIComponent(query)}`);
                 if (!response.ok) {
                     return;
                 }

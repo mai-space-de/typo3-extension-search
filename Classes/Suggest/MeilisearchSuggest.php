@@ -6,6 +6,7 @@ namespace Maispace\MaiSearch\Suggest;
 
 use Maispace\MaiSearch\Backend\Meilisearch\ConnectionFactory;
 use Maispace\MaiSearch\Backend\Meilisearch\IndexNameResolver;
+use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
 
 final class MeilisearchSuggest implements SuggestInterface
 {
@@ -19,14 +20,14 @@ final class MeilisearchSuggest implements SuggestInterface
         return 'meilisearch';
     }
 
-    public function getSuggestions(string $query, int $limit = 10): array
+    public function getSuggestions(string $query, int $limit = 10, ?SiteLanguage $language = null): array
     {
         if (trim($query) === '') {
             return [];
         }
 
         try {
-            $indexUid = $this->indexNameResolver->forLanguage(null);
+            $indexUid = $this->indexNameResolver->forLanguage($language?->getLocale()->getLanguageCode());
 
             $response = $this->connectionFactory->getClient()->search($indexUid, $query, [
                 'limit' => $limit,

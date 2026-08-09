@@ -7,6 +7,7 @@ namespace Maispace\MaiSearch\Tests\Unit\Suggest;
 use Maispace\MaiSearch\Suggest\IndexedSearchSuggest;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
 use TYPO3\CMS\IndexedSearch\Domain\Repository\IndexSearchRepository;
 use TYPO3\CMS\IndexedSearch\Lexer;
 
@@ -84,5 +85,26 @@ final class IndexedSearchSuggestTest extends TestCase
         $this->lexer->method('split2Words')->willThrowException(new \RuntimeException('boom'));
 
         self::assertSame([], $this->subject->getSuggestions('gymnastics'));
+    }
+
+    #[Test]
+    public function getSuggestionsPassesLanguageIdToSearchRepository(): void
+    {
+        $language = $this->createMock(SiteLanguage::class);
+        $language->method('getLanguageId')->willReturn(2);
+
+        $this->lexer->method('split2Words')->willReturnCallback(static fn(string $word): array => [$word]);
+        $this->searchRepository
+            ->expects(self::once())
+            ->method('initialize')
+            ->with(
+                settings: [],
+                searchData: self::callback(static fn(array $data): bool => ($data['languageUid'] ?? null) === 2),
+                externalParsers: [],
+                searchRootPageIdList: -1,
+            );
+        $this->searchRepository->method('doSearch')->willReturn(false);
+
+        $this->subject->getSuggestions('gymnastics', 10, $language);
     }
 }

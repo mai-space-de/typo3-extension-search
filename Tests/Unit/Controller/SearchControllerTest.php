@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Maispace\MaiSearch\Tests\Unit\Controller;
 
 use Maispace\MaiSearch\Configuration\RagConfiguration;
+use Maispace\MaiSearch\Configuration\SuggestConfiguration;
 use Maispace\MaiSearch\Controller\SearchController;
 use Maispace\MaiSearch\Domain\Service\RagContextResolver;
 use Maispace\MaiSearch\Domain\Service\SearchService;
@@ -15,6 +16,7 @@ use Maispace\MaiSearch\Service\ProviderRegistry;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
+use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
@@ -25,15 +27,18 @@ final class SearchControllerTest extends TestCase
     private SearchSynthesisService $synthesisService;
     private RagContextResolver $ragContextResolver;
     private RagConfiguration $ragConfiguration;
+    private SuggestConfiguration $suggestConfiguration;
 
     protected function setUp(): void
     {
         $this->searchService = $this->createMock(SearchService::class);
         $cache = $this->createMock(FrontendInterface::class);
         $cache->method('get')->willReturn(false);
+        $cacheManager = $this->createMock(CacheManager::class);
+        $cacheManager->method('getCache')->with('maisearch_answer')->willReturn($cache);
         $this->synthesisService = new SearchSynthesisService(
             $this->createMock(ProviderRegistry::class),
-            new AnswerCacheService($cache),
+            new AnswerCacheService($cacheManager),
         );
         $this->ragContextResolver = new RagContextResolver(
             $this->searchService,
@@ -43,6 +48,7 @@ final class SearchControllerTest extends TestCase
         $extensionConfiguration = $this->createMock(ExtensionConfiguration::class);
         $extensionConfiguration->method('get')->with('mai_search')->willReturn([]);
         $this->ragConfiguration = new RagConfiguration($extensionConfiguration);
+        $this->suggestConfiguration = new SuggestConfiguration($extensionConfiguration);
     }
 
     private function createController(): SearchController
@@ -52,6 +58,7 @@ final class SearchControllerTest extends TestCase
             $this->synthesisService,
             $this->ragContextResolver,
             $this->ragConfiguration,
+            $this->suggestConfiguration,
         );
     }
 
@@ -354,6 +361,7 @@ final class SearchControllerTest extends TestCase
             $this->synthesisService,
             $this->ragContextResolver,
             $ragConfiguration,
+            $this->suggestConfiguration,
         );
 
         $method = new \ReflectionMethod(SearchController::class, 'appendTurn');

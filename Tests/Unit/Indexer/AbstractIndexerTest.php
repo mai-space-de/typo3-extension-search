@@ -15,6 +15,7 @@ use Maispace\MaiSearch\Service\ContentHashService;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
@@ -219,6 +220,14 @@ final class AbstractIndexerTest extends TestCase
         return new ContentHashService($connectionPool);
     }
 
+    private function wrapCache(FrontendInterface $cache): AnswerCacheService
+    {
+        $cacheManager = $this->createMock(CacheManager::class);
+        $cacheManager->method('getCache')->with('maisearch_answer')->willReturn($cache);
+
+        return new AnswerCacheService($cacheManager);
+    }
+
     #[Test]
     public function sendDocumentSkipsHashTrackingWhenServicesAreNotInjected(): void
     {
@@ -270,7 +279,7 @@ final class AbstractIndexerTest extends TestCase
 
         $cache = $this->createMock(FrontendInterface::class);
         $cache->expects(self::once())->method('flushByTag')->with('context_' . md5('/news/1'));
-        $answerCacheService = new AnswerCacheService($cache);
+        $answerCacheService = $this->wrapCache($cache);
 
         $this->subject->injectContentHashService($contentHashService);
         $this->subject->injectAnswerCacheService($answerCacheService);
@@ -303,7 +312,7 @@ final class AbstractIndexerTest extends TestCase
 
         $cache = $this->createMock(FrontendInterface::class);
         $cache->expects(self::never())->method('flushByTag');
-        $answerCacheService = new AnswerCacheService($cache);
+        $answerCacheService = $this->wrapCache($cache);
 
         $this->subject->injectContentHashService($contentHashService);
         $this->subject->injectAnswerCacheService($answerCacheService);

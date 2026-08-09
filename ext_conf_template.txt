@@ -80,3 +80,17 @@ ragStreamingEnabled = 0
 
 # cat=rag/enable/50; type=int+; label=Maximum conversation turns to retain for multi-turn RAG follow-ups (0 disables history)
 ragHistoryMaxTurns = 6
+
+# Live search suggestions/autocomplete (SPEC-v2.md Phase 8) tuning lives here for the
+# same reason RAG rerank/streaming tuning does: SearchSuggestMiddleware is a plain
+# PSR-15 middleware with no reliable access to a resolved TypoScript Frontend
+# Controller. See Classes/Configuration/SuggestConfiguration.php.
+
+# cat=suggest/enable/10; type=boolean; label=Enable live search suggestions/autocomplete (requires JS)
+searchSuggestEnabled = 0
+
+# cat=suggest/enable/20; type=int+; label=Minimum characters typed before requesting suggestions
+searchSuggestMinChars = 2
+
+# cat=suggest/enable/30; type=int+; label=Maximum number of suggestions to return
+searchSuggestLimit = 8

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Maispace\MaiSearch\Suggest;
 
+use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
 use TYPO3\CMS\IndexedSearch\Domain\Repository\IndexSearchRepository;
 use TYPO3\CMS\IndexedSearch\Lexer;
 use TYPO3\CMS\IndexedSearch\Utility\IndexedSearchUtility;
@@ -26,7 +27,7 @@ final class IndexedSearchSuggest implements SuggestInterface
         return 'indexed_search';
     }
 
-    public function getSuggestions(string $query, int $limit = 10): array
+    public function getSuggestions(string $query, int $limit = 10, ?SiteLanguage $language = null): array
     {
         if (trim($query) === '') {
             return [];
@@ -36,7 +37,7 @@ final class IndexedSearchSuggest implements SuggestInterface
             $this->searchRepository->initialize(
                 settings: [],
                 searchData: [
-                    'languageUid' => 0,
+                    'languageUid' => $language?->getLanguageId() ?? 0,
                     'pointer' => 0,
                     'numberOfResults' => $limit,
                 ],

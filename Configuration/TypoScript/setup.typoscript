@@ -16,7 +16,6 @@ plugin.tx_maisearch {
 
         resultsPerPage = {$plugin.tx_maisearch.settings.resultsPerPage}
         ragEnabled = {$plugin.tx_maisearch.settings.ragEnabled}
-        searchSuggestEnabled = {$plugin.tx_maisearch.settings.searchSuggestEnabled}
     }
 
     persistence {

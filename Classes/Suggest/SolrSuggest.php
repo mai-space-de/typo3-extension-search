@@ -6,6 +6,7 @@ namespace Maispace\MaiSearch\Suggest;
 
 use Maispace\MaiSearch\Domain\Solr\ConnectionFactory;
 use Maispace\MaiSearch\Domain\Solr\SearchQuery;
+use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
 
 final class SolrSuggest implements SuggestInterface
 {
@@ -18,14 +19,14 @@ final class SolrSuggest implements SuggestInterface
         return 'solr';
     }
 
-    public function getSuggestions(string $query, int $limit = 10): array
+    public function getSuggestions(string $query, int $limit = 10, ?SiteLanguage $language = null): array
     {
         if (trim($query) === '') {
             return [];
         }
 
         try {
-            $connection = $this->connectionFactory->getConnection();
+            $connection = $this->connectionFactory->getConnection($language);
 
             $searchQuery = new SearchQuery();
             $searchQuery->setQuery('title_s:' . $this->escapeQuery($query) . '*')
