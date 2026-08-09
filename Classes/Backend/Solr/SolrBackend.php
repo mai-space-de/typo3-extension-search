@@ -227,23 +227,31 @@ final class SolrBackend implements SearchBackendInterface
     }
 
     /**
+     * `rq` must be a Solr RankQuery — a bare `{!knn ...}` query there is
+     * rejected ("rq parameter must be a RankQuery"), since KNN's query parser
+     * produces a plain Query, not a RankQuery. The KNN query has to be wrapped
+     * in `{!rerank}` (ReRankQParserPlugin) instead, referencing the actual KNN
+     * clause via a separate `rqq` param — this is the documented pattern for
+     * hybrid text+vector search since Solr didn't add a first-class
+     * `{!knn}`-as-rerank shortcut.
+     *
      * DEFAULT_KNN_WEIGHT is currently always 1.0 (no caller has ever tuned it),
-     * so the `^weight` re-rank suffix Solr supports is intentionally omitted
-     * here — reintroduce it if DEFAULT_KNN_WEIGHT ever becomes configurable.
+     * matching reRankWeight=1 below — reintroduce as a param if that changes.
      *
      * @param list<float> $vector
      */
     private function addKnnReRankParam(SearchQuery $solrQuery, array $vector): void
     {
         $vectorString = '[' . implode(',', $vector) . ']';
-        $rqValue = sprintf(
-            '{!knn f=%s topK=%d}%s',
-            SchemaManager::VECTOR_FIELD_NAME,
-            self::DEFAULT_KNN_TOP_K,
-            $vectorString,
-        );
 
-        $solrQuery->addParam('rq', $rqValue);
+        $solrQuery->addParam(
+            'rq',
+            sprintf('{!rerank reRankQuery=$rqq reRankDocs=%d reRankWeight=1}', self::DEFAULT_KNN_TOP_K),
+        );
+        $solrQuery->addParam(
+            'rqq',
+            sprintf('{!knn f=%s topK=%d}%s', SchemaManager::VECTOR_FIELD_NAME, self::DEFAULT_KNN_TOP_K, $vectorString),
+        );
     }
 
     /**

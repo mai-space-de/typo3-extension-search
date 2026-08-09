@@ -297,8 +297,14 @@ class SolrBackendTest extends TestCase
             ->with(self::callback(static function (SearchQuery $query): bool {
                 $params = $query->getParams();
 
+                // rq must be a Solr RankQuery — {!knn} alone isn't one, so the
+                // KNN clause lives in rqq and rq wraps it via {!rerank}.
                 return isset($params['rq'])
-                    && str_contains((string) $params['rq'], SchemaManager::VECTOR_FIELD_NAME);
+                    && str_contains((string) $params['rq'], '{!rerank')
+                    && str_contains((string) $params['rq'], '$rqq')
+                    && isset($params['rqq'])
+                    && str_contains((string) $params['rqq'], '{!knn')
+                    && str_contains((string) $params['rqq'], SchemaManager::VECTOR_FIELD_NAME);
             }))
             ->willReturn($this->createSearchResponse([]));
 

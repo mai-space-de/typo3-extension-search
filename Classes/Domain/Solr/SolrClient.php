@@ -9,6 +9,7 @@ use Solarium\Component\Facet\Field as FacetField;
 use Solarium\Component\Result\Facet\Field as FacetFieldResult;
 use Solarium\Core\Client\Adapter\Curl;
 use Solarium\Core\Client\Endpoint;
+use Solarium\Plugin\PostBigRequest;
 use Solarium\QueryType\Update\Query\Document as SolariumDocument;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 
@@ -182,6 +183,13 @@ final class SolrClient implements SolrClientInterface
         $client->clearEndpoints();
         $client->addEndpoint($this->endpoint);
         $client->setDefaultEndpoint($this->endpoint);
+
+        // The hybrid KNN rerank query (SolrBackend::addKnnReRankParam()) embeds a
+        // full embedding vector — hundreds to thousands of floats — directly into
+        // the `rq` query param. As a GET request that easily exceeds the server's
+        // URI length limit ("414 URI Too Long"); this plugin transparently
+        // switches to POST once the query string crosses the threshold.
+        $client->registerPlugin('postbigrequest', new PostBigRequest());
 
         return $client;
     }

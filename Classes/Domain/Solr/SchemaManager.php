@@ -14,14 +14,17 @@ use TYPO3\CMS\Core\SingletonInterface;
  * Applies the Solr DenseVectorField type and the `content_vector` field
  * to every configured Solr core via the Schema REST API.
  *
- * 1536 dimensions / cosine similarity / HNSW — matches OpenAI text-embedding-3-small.
- * Call ensureVectorFieldExists() once per core before indexing starts.
+ * 1024 dimensions / cosine similarity / HNSW — matches Ollama's bge-m3 embedding
+ * model (switched from OpenAI text-embedding-3-small's 1536 dims; the active
+ * embedding provider and this schema's vector dimension must always agree, or
+ * Solr rejects the KNN query outright). Call ensureVectorFieldExists() once per
+ * core before indexing starts.
  */
 class SchemaManager implements SingletonInterface
 {
     public const VECTOR_FIELD_NAME = 'content_vector';
-    public const VECTOR_DIMENSIONS = 1536;
-    public const VECTOR_FIELD_TYPE_NAME = 'knn_vector_1536';
+    public const VECTOR_DIMENSIONS = 1024;
+    public const VECTOR_FIELD_TYPE_NAME = 'knn_vector_1024';
 
     private const SCHEMA_API_PATH = '/solr/%s/schema';
     private const CORE_ADMIN_PATH = '/solr/admin/cores';

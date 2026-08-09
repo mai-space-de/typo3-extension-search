@@ -20,8 +20,8 @@ final class SchemaManagerTest extends TestCase
     public function constantsHaveExpectedValues(): void
     {
         self::assertSame('content_vector', SchemaManager::VECTOR_FIELD_NAME);
-        self::assertSame(1536, SchemaManager::VECTOR_DIMENSIONS);
-        self::assertSame('knn_vector_1536', SchemaManager::VECTOR_FIELD_TYPE_NAME);
+        self::assertSame(1024, SchemaManager::VECTOR_DIMENSIONS);
+        self::assertSame('knn_vector_1024', SchemaManager::VECTOR_FIELD_TYPE_NAME);
     }
 
     #[Test]
@@ -33,9 +33,9 @@ final class SchemaManagerTest extends TestCase
 
         self::assertArrayHasKey('add-field-type', $payload);
         $fieldType = $payload['add-field-type'];
-        self::assertSame('knn_vector_1536', $fieldType['name']);
+        self::assertSame('knn_vector_1024', $fieldType['name']);
         self::assertSame('solr.DenseVectorField', $fieldType['class']);
-        self::assertSame(1536, $fieldType['vectorDimension']);
+        self::assertSame(1024, $fieldType['vectorDimension']);
         self::assertSame('float32', $fieldType['vectorEncoding']);
         self::assertSame('cosine', $fieldType['similarityFunction']);
     }
@@ -50,7 +50,7 @@ final class SchemaManagerTest extends TestCase
         self::assertArrayHasKey('add-field', $payload);
         $field = $payload['add-field'];
         self::assertSame('content_vector', $field['name']);
-        self::assertSame('knn_vector_1536', $field['type']);
+        self::assertSame('knn_vector_1024', $field['type']);
         self::assertTrue($field['indexed']);
         self::assertTrue($field['stored']);
         self::assertFalse($field['multiValued']);
@@ -181,7 +181,7 @@ final class SchemaManagerTest extends TestCase
             new Response(
                 400,
                 [],
-                '{"error":{"details":[{"errorMessages":["Field type \'knn_vector_1536\' already exists.\\n"]}]}}',
+                '{"error":{"details":[{"errorMessages":["Field type \'knn_vector_1024\' already exists.\\n"]}]}}',
             ),
         );
 
