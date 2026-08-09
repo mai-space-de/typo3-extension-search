@@ -13,7 +13,7 @@
         "php": "^8.2",
         "guzzlehttp/guzzle": "^7.0",
         "maispace/mai-base": "@dev",
-        "maispace/mai-turbo": "^14.0",
+        "maispace/mai-turbo": "@dev",
         "meilisearch/meilisearch-php": "^1.9",
         "solarium/solarium": "^7.0",
         "typo3/cms-core": "^14.1",
@@ -21,6 +21,7 @@
         "typo3/cms-extbase": "^14.1",
         "typo3/cms-fluid": "^14.1",
         "typo3/cms-indexed-search": "^14.1",
+        "typo3/cms-reports": "^14.1",
         "typo3/cms-scheduler": "^14.1"
     },
     "suggest": {
@@ -81,6 +82,10 @@
         {
             "type": "path",
             "url": "../typo3-extension-base"
+        },
+        {
+            "type": "path",
+            "url": "../typo3-extension-turbo"
         }
     ],
     "config": {

@@ -29,4 +29,14 @@ interface MeilisearchClientInterface
      * @param array<string, mixed> $searchParameters
      */
     public function search(string $indexUid, string $query, array $searchParameters = []): SearchResponse;
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function health(): ?array;
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function stats(): array;
 }

@@ -17,11 +17,11 @@ ExtensionUtility::configurePlugin(
     'MaiSearch',
     'Search',
     [
-        \Maispace\MaiSearch\Controller\SearchController::class => 'results',
+        \Maispace\MaiSearch\Controller\SearchController::class => 'results,suggest',
     ],
     [
         // Dynamic Solr results; GET query/type/page params are cacheHash-excluded below.
-        \Maispace\MaiSearch\Controller\SearchController::class => 'results',
+        \Maispace\MaiSearch\Controller\SearchController::class => 'results,suggest',
     ],
     ExtensionUtility::PLUGIN_TYPE_CONTENT_ELEMENT,
 );
@@ -46,3 +46,15 @@ ExtensionManagementUtility::addTypoScript(
     'constants',
     "@import 'EXT:mai_search/Configuration/TypoScript/constants.typoscript'",
 );
+
+// Register cache for RAG answer caching (Phase 7)
+if (!isset($GLOBALS['TYPO3_CONF_VARS']['SYS']['caching']['cacheConfigurations']['maisearch_answer'])) {
+    $GLOBALS['TYPO3_CONF_VARS']['SYS']['caching']['cacheConfigurations']['maisearch_answer'] = [
+        'frontend' => \TYPO3\CMS\Core\Cache\Frontend\VariableFrontend::class,
+        'backend' => \TYPO3\CMS\Core\Cache\Backend\Typo3DatabaseBackend::class,
+        'options' => [
+            'defaultLifetime' => 3600, // 1 hour
+        ],
+        'groups' => ['pages', 'system'],
+    ];
+}

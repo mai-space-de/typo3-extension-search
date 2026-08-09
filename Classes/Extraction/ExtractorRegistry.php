@@ -24,7 +24,7 @@ class ExtractorRegistry
         ];
 
         $tikaExtractor = GeneralUtility::makeInstance(TikaTextExtractor::class);
-        if ($tikaExtractor->supports($this->createDummyFile())) {
+        if ($tikaExtractor->isAvailable()) {
             $this->extractors[] = $tikaExtractor;
         }
 
@@ -40,60 +40,5 @@ class ExtractorRegistry
         }
 
         return $this->extractors[0] ?? GeneralUtility::makeInstance(NullTextExtractor::class);
-    }
-
-    private function createDummyFile(): FileInterface
-    {
-        return new class implements FileInterface {
-            public function hasProperty(string $key): bool
-            {
-                return false;
-            }
-
-            public function getProperty(string $key): mixed
-            {
-                return null;
-            }
-
-            public function getSize(): int
-            {
-                return 0;
-            }
-
-            public function getSha1(): string
-            {
-                return '';
-            }
-
-            public function getName(): string
-            {
-                return 'dummy.txt';
-            }
-
-            public function getExtension(): string
-            {
-                return 'txt';
-            }
-
-            public function getMimeType(): string
-            {
-                return 'text/plain';
-            }
-
-            public function getStorage(): \TYPO3\CMS\Core\Resource\ResourceStorage
-            {
-                throw new \RuntimeException('Not implemented');
-            }
-
-            public function getIdentifier(): string
-            {
-                return '';
-            }
-
-            public function getContents(): string
-            {
-                return '';
-            }
-        };
     }
 }

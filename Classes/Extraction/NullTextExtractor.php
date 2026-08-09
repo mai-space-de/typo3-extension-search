@@ -44,4 +44,9 @@ class NullTextExtractor implements TextExtractorInterface
     {
         return 0;
     }
+
+    public function isAvailable(): bool
+    {
+        return true;
+    }
 }

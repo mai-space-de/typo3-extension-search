@@ -46,6 +46,10 @@ services:
   Maispace\MaiSearch\Extraction\ExtractorRegistry:
     public: true
 
+  Maispace\MaiSearch\Service\AnswerCacheService:
+    arguments:
+      $cache: '@cache.maisearch_answer'
+
   # Explicit alias so resolution doesn't depend on Symfony's "only one
   # implementation exists" auto-wiring rule, which vanishes the moment a
   # second RerankerInterface implementation is added (see .lookup/smart-search's

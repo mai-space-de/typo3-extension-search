@@ -13,6 +13,7 @@ use Maispace\MaiSearch\Service\IndexQueueRepository;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use TYPO3\CMS\Core\Configuration\SiteConfiguration;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Expression\ExpressionBuilder;
@@ -31,6 +32,8 @@ final class IndexQueueProcessorTest extends TestCase
 
     private ConnectionPool&MockObject $connectionPool;
 
+    private EventDispatcherInterface&MockObject $eventDispatcher;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -38,6 +41,7 @@ final class IndexQueueProcessorTest extends TestCase
         $this->indexQueueRepository = $this->createMock(IndexQueueRepository::class);
         $this->indexerRegistry = $this->createMock(IndexerRegistry::class);
         $this->connectionPool = $this->createMock(ConnectionPool::class);
+        $this->eventDispatcher = $this->createMock(EventDispatcherInterface::class);
     }
 
     /**
@@ -76,6 +80,7 @@ final class IndexQueueProcessorTest extends TestCase
             $this->indexerRegistry,
             $this->connectionPool,
             $siteFinder,
+            $this->eventDispatcher,
         );
     }
 

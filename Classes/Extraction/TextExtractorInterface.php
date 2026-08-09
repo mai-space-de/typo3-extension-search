@@ -36,4 +36,11 @@ interface TextExtractorInterface
      * @return int Priority (default: 0)
      */
     public function getPriority(): int;
+
+    /**
+     * Whether this extractor's dependencies are present and usable right now —
+     * independent of any specific file. Lets ExtractorRegistry decide which
+     * extractors to register without needing a stand-in FileInterface.
+     */
+    public function isAvailable(): bool;
 }

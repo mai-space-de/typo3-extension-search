@@ -59,4 +59,14 @@ final class MeilisearchClient implements MeilisearchClientInterface
             facetDistribution: $result['facetDistribution'] ?? [],
         );
     }
+
+    public function health(): ?array
+    {
+        return $this->client->health();
+    }
+
+    public function stats(): array
+    {
+        return $this->client->stats();
+    }
 }

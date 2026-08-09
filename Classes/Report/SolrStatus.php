@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace Maispace\MaiSearch\Report;
 
 use Maispace\MaiSearch\Domain\Solr\ConnectionFactory;
+use TYPO3\CMS\Core\Type\ContextualFeedbackSeverity;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Reports\Status;
 use TYPO3\CMS\Reports\StatusProviderInterface;
 
 class SolrStatus implements StatusProviderInterface
 {
-    public function getTitle(): string
+    public function getLabel(): string
     {
         return 'Apache Solr';
     }
@@ -34,8 +35,9 @@ class SolrStatus implements StatusProviderInterface
         } catch (\Throwable $e) {
             $statuses[] = new Status(
                 'Solr Connection',
-                Status::ERROR,
+                'Unreachable',
                 sprintf('Failed to initialize Solr connection: %s', $e->getMessage()),
+                ContextualFeedbackSeverity::ERROR,
             );
         }
 
@@ -56,14 +58,16 @@ class SolrStatus implements StatusProviderInterface
 
             return new Status(
                 sprintf('Core "%s"', $core),
-                Status::OK,
+                (string) $response->getNumFound(),
                 sprintf('%d documents indexed', $response->getNumFound()),
+                ContextualFeedbackSeverity::OK,
             );
         } catch (\Throwable $e) {
             return new Status(
                 sprintf('Core "%s"', $core),
-                Status::ERROR,
+                'Unreachable',
                 sprintf('Solr core unreachable: %s', $e->getMessage()),
+                ContextualFeedbackSeverity::ERROR,
             );
         }
     }

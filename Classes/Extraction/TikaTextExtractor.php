@@ -66,6 +66,11 @@ class TikaTextExtractor implements TextExtractorInterface
         return 100;
     }
 
+    public function isAvailable(): bool
+    {
+        return $this->getTikaExtractor() !== null;
+    }
+
     private function getTikaExtractor(): ?object
     {
         $tikaClass = 'ApacheSolrForTypo3\\Tika\\Service\\Extractor\\TextExtractor';
