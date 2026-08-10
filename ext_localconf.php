@@ -58,3 +58,15 @@ if (!isset($GLOBALS['TYPO3_CONF_VARS']['SYS']['caching']['cacheConfigurations'][
         'groups' => ['pages', 'system'],
     ];
 }
+
+// Register cache for query-time embedding caching (SPEC-v3-caching-chunking.md Phase A)
+if (!isset($GLOBALS['TYPO3_CONF_VARS']['SYS']['caching']['cacheConfigurations']['maisearch_query_embedding'])) {
+    $GLOBALS['TYPO3_CONF_VARS']['SYS']['caching']['cacheConfigurations']['maisearch_query_embedding'] = [
+        'frontend' => \TYPO3\CMS\Core\Cache\Frontend\VariableFrontend::class,
+        'backend' => \TYPO3\CMS\Core\Cache\Backend\Typo3DatabaseBackend::class,
+        'options' => [
+            'defaultLifetime' => 86400, // 24 hours
+        ],
+        'groups' => ['pages', 'system'],
+    ];
+}

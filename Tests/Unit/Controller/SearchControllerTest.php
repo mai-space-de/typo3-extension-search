@@ -10,8 +10,12 @@ use Maispace\MaiSearch\Controller\SearchController;
 use Maispace\MaiSearch\Domain\Service\RagContextResolver;
 use Maispace\MaiSearch\Domain\Service\SearchService;
 use Maispace\MaiSearch\Domain\Service\SearchSynthesisService;
+use Maispace\MaiSearch\Domain\Service\SearchBackendInterface;
+use Maispace\MaiSearch\Http\RagApiSupport;
 use Maispace\MaiSearch\Reranking\RerankerInterface;
 use Maispace\MaiSearch\Service\AnswerCacheService;
+use Maispace\MaiSearch\Service\BackendRegistry;
+use Maispace\MaiSearch\Service\ProviderAvailabilityService;
 use Maispace\MaiSearch\Service\ProviderRegistry;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -28,10 +32,18 @@ final class SearchControllerTest extends TestCase
     private RagContextResolver $ragContextResolver;
     private RagConfiguration $ragConfiguration;
     private SuggestConfiguration $suggestConfiguration;
+    private ProviderAvailabilityService $providerAvailability;
+    private RagApiSupport $ragApiSupport;
 
     protected function setUp(): void
     {
         $this->searchService = $this->createMock(SearchService::class);
+
+        $extensionConfiguration = $this->createMock(ExtensionConfiguration::class);
+        $extensionConfiguration->method('get')->with('mai_search')->willReturn([]);
+        $this->ragConfiguration = new RagConfiguration($extensionConfiguration);
+        $this->suggestConfiguration = new SuggestConfiguration($extensionConfiguration);
+
         $cache = $this->createMock(FrontendInterface::class);
         $cache->method('get')->willReturn(false);
         $cacheManager = $this->createMock(CacheManager::class);
@@ -39,16 +51,18 @@ final class SearchControllerTest extends TestCase
         $this->synthesisService = new SearchSynthesisService(
             $this->createMock(ProviderRegistry::class),
             new AnswerCacheService($cacheManager),
+            $this->ragConfiguration,
         );
+        $backendRegistry = $this->createMock(BackendRegistry::class);
+        $backendRegistry->method('getActive')->willReturn($this->createMock(SearchBackendInterface::class));
         $this->ragContextResolver = new RagContextResolver(
             $this->searchService,
             $this->createMock(RerankerInterface::class),
+            $backendRegistry,
         );
-
-        $extensionConfiguration = $this->createMock(ExtensionConfiguration::class);
-        $extensionConfiguration->method('get')->with('mai_search')->willReturn([]);
-        $this->ragConfiguration = new RagConfiguration($extensionConfiguration);
-        $this->suggestConfiguration = new SuggestConfiguration($extensionConfiguration);
+        $this->providerAvailability = $this->createMock(ProviderAvailabilityService::class);
+        $this->providerAvailability->method('isChatProviderAvailable')->willReturn(true);
+        $this->ragApiSupport = new RagApiSupport();
     }
 
     private function createController(): SearchController
@@ -59,6 +73,8 @@ final class SearchControllerTest extends TestCase
             $this->ragContextResolver,
             $this->ragConfiguration,
             $this->suggestConfiguration,
+            $this->providerAvailability,
+            $this->ragApiSupport,
         );
     }
 
@@ -362,6 +378,8 @@ final class SearchControllerTest extends TestCase
             $this->ragContextResolver,
             $ragConfiguration,
             $this->suggestConfiguration,
+            $this->providerAvailability,
+            $this->ragApiSupport,
         );
 
         $method = new \ReflectionMethod(SearchController::class, 'appendTurn');

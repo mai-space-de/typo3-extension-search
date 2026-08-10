@@ -37,6 +37,21 @@ class ConnectionFactory implements SingletonInterface
         return new MeilisearchClient(new Client($this->host, $this->apiKey !== '' ? $this->apiKey : null));
     }
 
+    /**
+     * Exposed for VectorStoreProvisioner, which talks to the /experimental-features
+     * endpoint directly via Guzzle — no typed endpoint exists for it in
+     * meilisearch/meilisearch-php (SPEC-v3-caching-chunking.md Phase E).
+     */
+    public function getHost(): string
+    {
+        return $this->host;
+    }
+
+    public function getApiKey(): string
+    {
+        return $this->apiKey;
+    }
+
     private function resolveEnvString(string $environmentVariable): ?string
     {
         $value = getenv($environmentVariable);

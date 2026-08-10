@@ -43,9 +43,24 @@ final class MeilisearchClient implements MeilisearchClientInterface
         $this->client->index($indexUid)->deleteDocument($documentId);
     }
 
+    public function deleteDocumentsByFilter(string $indexUid, string $filter): void
+    {
+        $this->client->index($indexUid)->deleteDocuments(['filter' => $filter]);
+    }
+
     public function deleteAllDocuments(string $indexUid): void
     {
         $this->client->index($indexUid)->deleteAllDocuments();
+    }
+
+    public function configureEmbedder(string $indexUid, string $embedderName, int $dimensions): void
+    {
+        $this->client->index($indexUid)->updateEmbedders([
+            $embedderName => [
+                'source' => 'userProvided',
+                'dimensions' => $dimensions,
+            ],
+        ]);
     }
 
     public function search(string $indexUid, string $query, array $searchParameters = []): SearchResponse

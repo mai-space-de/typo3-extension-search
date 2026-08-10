@@ -46,6 +46,7 @@ class ProviderFactory
             $this->requestFactory,
             (string) ($this->settings['openai']['apiKey'] ?? ''),
             (string) ($this->settings['openai']['embeddingModel'] ?? 'text-embedding-3-small'),
+            (int) ($this->settings['openai']['dimensions'] ?? 1536),
         );
     }
 
@@ -55,6 +56,7 @@ class ProviderFactory
             $this->requestFactory,
             (string) ($this->settings['ollama']['baseUrl'] ?? 'http://localhost:11434'),
             (string) ($this->settings['ollama']['embeddingModel'] ?? 'nomic-embed-text'),
+            (int) ($this->settings['ollama']['dimensions'] ?? 768),
         );
     }
 
@@ -64,6 +66,7 @@ class ProviderFactory
             $this->requestFactory,
             (string) ($this->settings['custom']['embeddingUrl'] ?? ''),
             (string) ($this->settings['custom']['apiKey'] ?? ''),
+            dimensions: (int) ($this->settings['custom']['dimensions'] ?? 0),
         );
     }
 

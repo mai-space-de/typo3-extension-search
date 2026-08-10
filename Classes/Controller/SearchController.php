@@ -11,6 +11,8 @@ use Maispace\MaiSearch\Domain\Model\ConversationHistory;
 use Maispace\MaiSearch\Domain\Service\RagContextResolver;
 use Maispace\MaiSearch\Domain\Service\SearchService;
 use Maispace\MaiSearch\Domain\Service\SearchSynthesisService;
+use Maispace\MaiSearch\Http\RagApiSupport;
+use Maispace\MaiSearch\Service\ProviderAvailabilityService;
 use Psr\Http\Message\ResponseInterface;
 use TYPO3\CMS\Core\Page\AssetCollector;
 use TYPO3\CMS\Core\Page\PageRenderer;
@@ -28,6 +30,8 @@ class SearchController extends ActionController
         private readonly RagContextResolver $ragContextResolver,
         private readonly RagConfiguration $ragConfiguration,
         private readonly SuggestConfiguration $suggestConfiguration,
+        private readonly ProviderAvailabilityService $providerAvailability,
+        private readonly RagApiSupport $ragApiSupport,
     ) {}
 
     public function injectPageRenderer(PageRenderer $pageRenderer): void
@@ -57,13 +61,16 @@ class SearchController extends ActionController
     public function resultsAction(string $query = '', string $type = '', int $page = 1, string $history = ''): ResponseInterface
     {
         $ragEnabled = $this->resolveRagEnabled();
+        $chatAvailable = !$ragEnabled || $this->providerAvailability->isChatProviderAvailable();
         $suggestEnabled = $this->suggestConfiguration->isEnabled();
         $perPage = max(1, (int) ($this->settings['resultsPerPage'] ?? 20));
         $page = max(1, $page);
         $typeFilter = $type !== '' ? $type : null;
         $conversationHistory = $this->decodeHistory($history);
+        $language = $this->resolveCurrentLanguage();
+        $languageCode = $this->ragApiSupport->languageCode($language);
 
-        if ($ragEnabled && $this->ragConfiguration->isStreamingEnabled()) {
+        if ($ragEnabled && $chatAvailable && $this->ragConfiguration->isStreamingEnabled()) {
             $this->addJsFile('mai_search_stream', 'EXT:mai_search/Resources/Public/JavaScript/search-stream.js');
         }
 
@@ -74,17 +81,19 @@ class SearchController extends ActionController
         if (trim($query) === '') {
             $this->view->assignMultiple([
                 'ragEnabled' => $ragEnabled,
+                'ragProviderUnavailable' => $ragEnabled && !$chatAvailable,
                 'suggestEnabled' => $suggestEnabled,
                 'query' => $query,
                 'type' => $typeFilter,
                 'page' => $page,
                 'historyPayload' => $history,
+                'languageCode' => $languageCode,
+                'ragContextPayload' => '[]',
             ]);
 
             return $this->htmlResponse();
         }
 
-        $language = $this->resolveCurrentLanguage();
         $offset = ($page - 1) * $perPage;
 
         $resultPage = $this->searchService->search(
@@ -92,17 +101,18 @@ class SearchController extends ActionController
             $perPage,
             $offset,
             $language,
-            $ragEnabled,
+            $ragEnabled && $chatAvailable,
             type: $typeFilter,
         );
 
-        $ragOnPageOne = $ragEnabled && $page === 1 && $resultPage->results !== [];
+        $ragOnPageOne = $ragEnabled && $chatAvailable && $page === 1 && $resultPage->results !== [];
         $streamingActive = $ragOnPageOne && $this->ragConfiguration->isStreamingEnabled();
 
         $synthesisResult = null;
         $historyPayload = $history;
+        $ragContextPayload = '[]';
 
-        if ($ragOnPageOne && !$streamingActive) {
+        if ($ragOnPageOne) {
             $context = $this->ragConfiguration->isRerankEnabled()
                 ? $this->ragContextResolver->resolve(
                     $query,
@@ -111,10 +121,17 @@ class SearchController extends ActionController
                     $this->ragConfiguration->getTopN(),
                     $this->ragConfiguration->getRerankWidth(),
                 )
-                : $resultPage->results;
+                : array_slice($resultPage->results, 0, $this->ragConfiguration->getTopN());
 
-            $synthesisResult = $this->synthesisService->synthesise($query, $context, $ragEnabled, $conversationHistory);
-            $historyPayload = $this->encodeHistory($this->appendTurn($conversationHistory, $query, $synthesisResult->answer));
+            $ragContextPayload = json_encode(
+                $this->ragApiSupport->serializeContext($context, $this->ragConfiguration->getTopN()),
+                JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
+            );
+
+            if (!$streamingActive) {
+                $synthesisResult = $this->synthesisService->synthesise($query, $context, true, $conversationHistory);
+                $historyPayload = $this->encodeHistory($this->appendTurn($conversationHistory, $query, $synthesisResult->answer));
+            }
         }
 
         $this->view->assignMultiple([
@@ -129,10 +146,13 @@ class SearchController extends ActionController
             'prevPage' => $resultPage->page > 1 ? $resultPage->page - 1 : null,
             'nextPage' => $resultPage->page < $resultPage->getTotalPages() ? $resultPage->page + 1 : null,
             'ragEnabled' => $ragEnabled,
+            'ragProviderUnavailable' => $ragEnabled && !$chatAvailable,
             'suggestEnabled' => $suggestEnabled,
             'synthesisResult' => $synthesisResult,
             'ragStreaming' => $streamingActive,
             'historyPayload' => $historyPayload,
+            'languageCode' => $languageCode,
+            'ragContextPayload' => $ragContextPayload,
         ]);
 
         return $this->htmlResponse();

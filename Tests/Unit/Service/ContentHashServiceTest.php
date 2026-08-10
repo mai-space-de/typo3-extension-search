@@ -177,4 +177,15 @@ final class ContentHashServiceTest extends TestCase
     {
         self::assertSame(hash('sha256', 'hello world'), $this->subject->computeContentHash('hello world'));
     }
+
+    #[Test]
+    public function removeAllHashesTruncatesTheTable(): void
+    {
+        $connection = $this->createMock(Connection::class);
+        $connection->expects(self::once())->method('truncate')->with(self::TABLE);
+
+        $this->connectionPool->method('getConnectionForTable')->with(self::TABLE)->willReturn($connection);
+
+        $this->subject->removeAllHashes();
+    }
 }

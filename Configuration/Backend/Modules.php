@@ -14,7 +14,16 @@ return [
         'labels' => 'LLL:EXT:mai_search/Resources/Private/Language/locallang_mod.xlf',
         'extensionName' => 'MaiSearch',
         'controllerActions' => [
-            SearchBackendController::class => ['index', 'reindex', 'clear', 'provision', 'queue', 'processQueue'],
+            SearchBackendController::class => [
+                'index',
+                'reindex',
+                'clear',
+                'clearAnswerCache',
+                'provision',
+                'queue',
+                'queueStatus',
+                'processQueue',
+            ],
         ],
     ],
 ];

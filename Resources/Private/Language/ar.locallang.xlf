@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+    <file source-language="en" target-language="ar" datatype="plaintext" original="EXT:mai_search/Resources/Private/Language/locallang.xlf">
+        <header/>
+        <body>
+            <trans-unit id="search.heading">
+                <source>Search</source>
+                <target>بحث</target>
+            </trans-unit>
+            <trans-unit id="search.lead">
+                <source>Find offers, news and pages about supporting refugees in Pulheim.</source>
+                <target>اعثر على العروض والأخبار والصفحات حول دعم اللاجئين في بولهايم.</target>
+            </trans-unit>
+            <trans-unit id="search.placeholder">
+                <source>Search...</source>
+                <target>بحث...</target>
+            </trans-unit>
+            <trans-unit id="search.submit">
+                <source>Search</source>
+                <target>بحث</target>
+            </trans-unit>
+            <trans-unit id="search.results.count">
+                <source>%d results for &quot;%s&quot;</source>
+                <target>%d نتائج لـ «%s»</target>
+            </trans-unit>
+            <trans-unit id="search.results.none">
+                <source>No results found.</source>
+                <target>لا توجد نتائج.</target>
+            </trans-unit>
+            <trans-unit id="search.label">
+                <source>Site search</source>
+                <target>بحث في الموقع</target>
+            </trans-unit>
+            <trans-unit id="search.results.list_label">
+                <source>Search results</source>
+                <target>نتائج البحث</target>
+            </trans-unit>
+            <trans-unit id="search.synthesis.label">
+                <source>AI-generated answer</source>
+                <target>إجابة مولَّدة بالذكاء الاصطناعي</target>
+            </trans-unit>
+            <trans-unit id="search.synthesis.title">
+                <source>AI Answer</source>
+                <target>إجابة الذكاء الاصطناعي</target>
+            </trans-unit>
+            <trans-unit id="search.synthesis.disclaimer">
+                <source>AI-generated summary — verify with search results below.</source>
+                <target>ملخص بالذكاء الاصطناعي — يُرجى التحقق من نتائج البحث أدناه.</target>
+            </trans-unit>
+            <trans-unit id="search.synthesis.unavailable">
+                <source>AI answers are temporarily unavailable.</source>
+                <target>إجابات الذكاء الاصطناعي غير متاحة مؤقتًا.</target>
+            </trans-unit>
+            <trans-unit id="search.synthesis.sources">
+                <source>Sources</source>
+                <target>المصادر</target>
+            </trans-unit>
+            <trans-unit id="search.synthesis.loading">
+                <source>Generating answer…</source>
+                <target>جاري إنشاء الإجابة…</target>
+            </trans-unit>
+            <trans-unit id="search.synthesis.searching">
+                <source>Searching…</source>
+                <target>جاري البحث…</target>
+            </trans-unit>
+            <trans-unit id="search.synthesis.error">
+                <source>The answer could not be generated.</source>
+                <target>تعذر إنشاء الإجابة.</target>
+            </trans-unit>
+        </body>
+    </file>
+</xliff>

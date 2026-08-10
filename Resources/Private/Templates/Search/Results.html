@@ -54,7 +54,7 @@
                     <f:if condition="{synthesisResult.sources}">
                         <div class="search-synthesis__sources">
                             <h4 class="search-synthesis__sources-heading">
-                                <f:translate key="search.synthesis.sources" default="Sources" />
+                                <f:translate key="search.synthesis.sources" />
                             </h4>
                             <ul class="search-synthesis__sources-list">
                                 <f:for each="{synthesisResult.sources}" as="source">
@@ -78,14 +78,19 @@
                 data-search-stream-query="{query}"
                 data-search-stream-type="{type}"
                 data-search-stream-history="{historyPayload}"
+                data-search-stream-language="{languageCode}"
+                data-search-stream-context="{ragContextPayload}"
+                data-i18n-searching="{f:translate(key: 'search.synthesis.searching')}"
+                data-i18n-loading="{f:translate(key: 'search.synthesis.loading')}"
+                data-i18n-error="{f:translate(key: 'search.synthesis.error')}"
             >
                 <div class="search-synthesis__answer" data-search-stream-answer aria-live="polite"></div>
                 <p class="search-synthesis__status" data-search-stream-status>
-                    <f:translate key="search.synthesis.loading" default="Generating answer…" />
+                    <f:translate key="search.synthesis.loading" />
                 </p>
                 <div class="search-synthesis__sources" data-search-stream-sources-wrapper hidden="hidden">
                     <h4 class="search-synthesis__sources-heading">
-                        <f:translate key="search.synthesis.sources" default="Sources" />
+                        <f:translate key="search.synthesis.sources" />
                     </h4>
                     <ul class="search-synthesis__sources-list" data-search-stream-sources></ul>
                 </div>

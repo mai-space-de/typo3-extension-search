@@ -1,12 +1,24 @@
 <html
+    xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
     xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
     data-namespace-typo3-fluid="true"
 >
 
 <f:layout name="Module" />
 
+<f:section name="Before">
+    <f:be.pageRenderer
+        includeCssFiles="{
+            0: 'EXT:mai_search/Resources/Public/Css/backend/queue-progress.css'
+        }"
+        includeJavaScriptModules="{
+            0: '@maispace/mai-search/backend/queue-poll.js'
+        }"
+    />
+</f:section>
+
 <f:section name="Content">
-    <div class="module-body">
+    <div class="module-body" data-queue-poll data-queue-status-url="{queueStatusUrl}">
         <h1><f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.title" /></h1>
 
         <div class="row" style="margin-bottom: 2em;">
@@ -57,6 +69,8 @@
             </div>
         </div>
 
+        <f:render partial="QueueProgressBar" arguments="{progress: queueProgress}" />
+
         <h2><f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.actions.title" /></h2>
 
         <div style="margin-bottom: 2em;">
@@ -70,6 +84,13 @@
                            title="{f:translate(key: 'LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.clear.title')}">
                 <core:icon identifier="actions-delete" />
                 <f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.clear.button" />
+            </f:link.action>
+
+            <f:link.action action="clearAnswerCache" class="btn btn-default" style="margin-left: 0.5em;"
+                           onclick="return confirm('{f:translate(key: \'LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.clearAnswerCache.confirm\')}')"
+                           title="{f:translate(key: 'LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.clearAnswerCache.title')}">
+                <core:icon identifier="actions-refresh" />
+                <f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.clearAnswerCache.button" />
             </f:link.action>
 
             <f:link.action action="provision" class="btn btn-default" style="margin-left: 0.5em;"

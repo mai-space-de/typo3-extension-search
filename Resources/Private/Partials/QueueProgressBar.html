@@ -1,0 +1,74 @@
+<div class="mai-search-queue-progress" data-queue-progress>
+    <div class="mai-search-queue-progress__header">
+        <h2 class="mai-search-queue-progress__title">
+            <f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:queue.progress.title" />
+        </h2>
+        <span class="mai-search-queue-progress__total text-muted">
+            <strong data-queue-progress-total>{progress.total}</strong>
+            <f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:queue.progress.jobsLabel" />
+        </span>
+    </div>
+
+    <div
+        class="mai-search-queue-progress__track"
+        role="img"
+        aria-label="{f:translate(key: 'LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:queue.progress.title')}"
+        data-queue-progress-track
+    >
+        <div
+            class="mai-search-queue-progress__segment mai-search-queue-progress__segment--pending"
+            data-queue-segment="pending"
+            style="flex-grow: {progress.counts.pending};"
+            title="{f:translate(key: 'LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:queue.pending')}: {progress.counts.pending} ({progress.percentages.pending}%)"
+        ></div>
+        <div
+            class="mai-search-queue-progress__segment mai-search-queue-progress__segment--processing"
+            data-queue-segment="processing"
+            style="flex-grow: {progress.counts.processing};"
+            title="{f:translate(key: 'LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:queue.processing')}: {progress.counts.processing} ({progress.percentages.processing}%)"
+        ></div>
+        <div
+            class="mai-search-queue-progress__segment mai-search-queue-progress__segment--done"
+            data-queue-segment="done"
+            style="flex-grow: {progress.counts.done};"
+            title="{f:translate(key: 'LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:queue.done')}: {progress.counts.done} ({progress.percentages.done}%)"
+        ></div>
+        <div
+            class="mai-search-queue-progress__segment mai-search-queue-progress__segment--failed"
+            data-queue-segment="failed"
+            style="flex-grow: {progress.counts.failed};"
+            title="{f:translate(key: 'LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:queue.failed')}: {progress.counts.failed} ({progress.percentages.failed}%)"
+        ></div>
+    </div>
+
+    <ul class="mai-search-queue-progress__legend">
+        <li class="mai-search-queue-progress__legend-item">
+            <span class="mai-search-queue-progress__swatch mai-search-queue-progress__swatch--pending" aria-hidden="true"></span>
+            <span class="mai-search-queue-progress__legend-label">
+                <f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:queue.pending" />
+            </span>
+            <strong data-queue-count="pending">{progress.counts.pending}</strong>
+        </li>
+        <li class="mai-search-queue-progress__legend-item">
+            <span class="mai-search-queue-progress__swatch mai-search-queue-progress__swatch--processing" aria-hidden="true"></span>
+            <span class="mai-search-queue-progress__legend-label">
+                <f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:queue.processing" />
+            </span>
+            <strong data-queue-count="processing">{progress.counts.processing}</strong>
+        </li>
+        <li class="mai-search-queue-progress__legend-item">
+            <span class="mai-search-queue-progress__swatch mai-search-queue-progress__swatch--done" aria-hidden="true"></span>
+            <span class="mai-search-queue-progress__legend-label">
+                <f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:queue.done" />
+            </span>
+            <strong data-queue-count="done">{progress.counts.done}</strong>
+        </li>
+        <li class="mai-search-queue-progress__legend-item">
+            <span class="mai-search-queue-progress__swatch mai-search-queue-progress__swatch--failed" aria-hidden="true"></span>
+            <span class="mai-search-queue-progress__legend-label">
+                <f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:queue.failed" />
+            </span>
+            <strong data-queue-count="failed">{progress.counts.failed}</strong>
+        </li>
+    </ul>
+</div>

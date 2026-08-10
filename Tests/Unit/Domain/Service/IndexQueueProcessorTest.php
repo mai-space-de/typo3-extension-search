@@ -122,7 +122,7 @@ final class IndexQueueProcessorTest extends TestCase
     // ─── processBatch ───────────────────────────────────────────────────────
 
     #[Test]
-    public function processBatchReturnsZeroAndDoesNothingWhenQueueIsEmpty(): void
+    public function processBatchReturnsZeroAndSkipsProcessingWhenQueueIsEmpty(): void
     {
         $this->indexQueueRepository->method('findOpenBatch')->willReturn([]);
         $this->indexQueueRepository->expects(self::never())->method('markProcessing');
@@ -130,6 +130,32 @@ final class IndexQueueProcessorTest extends TestCase
         $processor = $this->processor($this->brokenSiteFinder());
 
         self::assertSame(0, $processor->processBatch());
+    }
+
+    #[Test]
+    public function processBatchPrunesOldDoneAndFailedEntriesEveryRunRegardlessOfQueueState(): void
+    {
+        $this->indexQueueRepository->method('findOpenBatch')->willReturn([]);
+        $this->indexQueueRepository->expects(self::once())->method('cleanupOld');
+
+        $processor = $this->processor($this->brokenSiteFinder());
+        $processor->processBatch();
+    }
+
+    #[Test]
+    public function processBatchPrunesOldEntriesAfterHandlingFoundJobs(): void
+    {
+        $this->indexQueueRepository->method('findOpenBatch')->willReturn([
+            $this->job(1, 'pages', 10, IndexQueueRepository::OPERATION_REMOVE),
+        ]);
+
+        $indexer = $this->createMock(SearchIndexerInterface::class);
+        $this->indexerRegistry->method('getIndexerForTable')->willReturn($indexer);
+
+        $this->indexQueueRepository->expects(self::once())->method('cleanupOld');
+
+        $processor = $this->processor($this->brokenSiteFinder());
+        $processor->processBatch();
     }
 
     #[Test]

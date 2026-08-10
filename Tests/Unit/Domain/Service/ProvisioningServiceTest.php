@@ -7,10 +7,13 @@ namespace Maispace\MaiSearch\Tests\Unit\Domain\Service;
 use Maispace\MaiSearch\Backend\Meilisearch\ConnectionFactory as MeilisearchConnectionFactory;
 use Maispace\MaiSearch\Backend\Meilisearch\IndexNameResolver;
 use Maispace\MaiSearch\Backend\Meilisearch\MeilisearchClientInterface;
+use Maispace\MaiSearch\Backend\Meilisearch\VectorStoreProvisioner;
+use Maispace\MaiSearch\Domain\Service\EmbeddingProviderInterface;
 use Maispace\MaiSearch\Domain\Service\ProvisioningService;
 use Maispace\MaiSearch\Domain\Service\SearchBackendInterface;
 use Maispace\MaiSearch\Domain\Solr\SchemaManager;
 use Maispace\MaiSearch\Service\BackendRegistry;
+use Maispace\MaiSearch\Service\ProviderRegistry;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use TYPO3\CMS\Core\Localization\Locale;
@@ -25,6 +28,8 @@ final class ProvisioningServiceTest extends TestCase
     private MeilisearchConnectionFactory $meilisearchConnectionFactory;
     private IndexNameResolver $indexNameResolver;
     private SiteFinder $siteFinder;
+    private VectorStoreProvisioner $vectorStoreProvisioner;
+    private ProviderRegistry $providerRegistry;
     private ProvisioningService $service;
 
     protected function setUp(): void
@@ -34,6 +39,12 @@ final class ProvisioningServiceTest extends TestCase
         $this->meilisearchConnectionFactory = $this->createMock(MeilisearchConnectionFactory::class);
         $this->indexNameResolver = new IndexNameResolver();
         $this->siteFinder = $this->createMock(SiteFinder::class);
+        $this->vectorStoreProvisioner = $this->createMock(VectorStoreProvisioner::class);
+
+        $embeddingProvider = $this->createMock(EmbeddingProviderInterface::class);
+        $embeddingProvider->method('getDimensions')->willReturn(1024);
+        $this->providerRegistry = $this->createMock(ProviderRegistry::class);
+        $this->providerRegistry->method('getActiveEmbeddingProvider')->willReturn($embeddingProvider);
 
         $this->service = new ProvisioningService(
             $this->backendRegistry,
@@ -41,6 +52,8 @@ final class ProvisioningServiceTest extends TestCase
             $this->meilisearchConnectionFactory,
             $this->indexNameResolver,
             $this->siteFinder,
+            $this->vectorStoreProvisioner,
+            $this->providerRegistry,
         );
     }
 
@@ -83,13 +96,19 @@ final class ProvisioningServiceTest extends TestCase
         $this->siteFinder->method('getAllSites')->willReturn(['main' => $site]);
 
         $client = $this->createMock(MeilisearchClientInterface::class);
-        $client->expects(self::exactly(2))->method('ensureIndex');
+        $client->expects(self::exactly(4))->method('ensureIndex');
+        $client->expects(self::exactly(2))->method('configureEmbedder')->with(self::anything(), 'default', 1024);
         $this->meilisearchConnectionFactory->method('getClient')->willReturn($client);
+
+        $this->vectorStoreProvisioner->expects(self::once())->method('ensureVectorStoreEnabled');
 
         $result = $this->service->provision();
 
         self::assertSame('meilisearch', $result->backend);
-        self::assertSame(['mai_search_de', 'mai_search_en'], $result->provisioned);
+        self::assertSame(
+            ['mai_search_de', 'mai_search_chunks_de', 'mai_search_en', 'mai_search_chunks_en'],
+            $result->provisioned,
+        );
     }
 
     #[Test]
@@ -99,12 +118,12 @@ final class ProvisioningServiceTest extends TestCase
         $this->siteFinder->method('getAllSites')->willReturn([]);
 
         $client = $this->createMock(MeilisearchClientInterface::class);
-        $client->expects(self::once())->method('ensureIndex')->with('mai_search', self::anything());
+        $client->expects(self::exactly(2))->method('ensureIndex')->with(self::logicalOr('mai_search', 'mai_search_chunks'), self::anything());
         $this->meilisearchConnectionFactory->method('getClient')->willReturn($client);
 
         $result = $this->service->provision();
 
-        self::assertSame(['mai_search'], $result->provisioned);
+        self::assertSame(['mai_search', 'mai_search_chunks'], $result->provisioned);
     }
 
     #[Test]

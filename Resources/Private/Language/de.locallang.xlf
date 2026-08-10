@@ -87,9 +87,45 @@
                 <source>Page %d of %d</source>
                 <target>Seite %d von %d</target>
             </trans-unit>
+            <trans-unit id="search.label">
+                <source>Site search</source>
+                <target>Seitensuche</target>
+            </trans-unit>
+            <trans-unit id="search.results.list_label">
+                <source>Search results</source>
+                <target>Suchergebnisse</target>
+            </trans-unit>
+            <trans-unit id="search.synthesis.label">
+                <source>AI-generated answer</source>
+                <target>KI-generierte Antwort</target>
+            </trans-unit>
+            <trans-unit id="search.synthesis.title">
+                <source>AI Answer</source>
+                <target>KI-Antwort</target>
+            </trans-unit>
+            <trans-unit id="search.synthesis.disclaimer">
+                <source>AI-generated summary — verify with search results below.</source>
+                <target>KI-generierte Zusammenfassung — bitte mit den Suchergebnissen unten prüfen.</target>
+            </trans-unit>
+            <trans-unit id="search.synthesis.unavailable">
+                <source>AI answers are temporarily unavailable.</source>
+                <target>KI-Antworten sind vorübergehend nicht verfügbar.</target>
+            </trans-unit>
             <trans-unit id="search.synthesis.sources">
                 <source>Sources</source>
                 <target>Quellen</target>
+            </trans-unit>
+            <trans-unit id="search.synthesis.loading">
+                <source>Generating answer…</source>
+                <target>Antwort wird erzeugt…</target>
+            </trans-unit>
+            <trans-unit id="search.synthesis.searching">
+                <source>Searching…</source>
+                <target>Suche läuft…</target>
+            </trans-unit>
+            <trans-unit id="search.synthesis.error">
+                <source>The answer could not be generated.</source>
+                <target>Die Antwort konnte nicht erzeugt werden.</target>
             </trans-unit>
         </body>
     </file>

@@ -11,8 +11,12 @@ use Maispace\MaiSearch\Event\AfterDocumentBuiltEvent;
 use Maispace\MaiSearch\Event\BeforeDocumentBuiltEvent;
 use Maispace\MaiSearch\Service\AnswerCacheService;
 use Maispace\MaiSearch\Service\BackendRegistry;
+use Maispace\MaiSearch\Service\ChunkIndexingService;
 use Maispace\MaiSearch\Service\ContentHashService;
 use Psr\EventDispatcher\EventDispatcherInterface;
+use TYPO3\CMS\Core\Database\Connection;
+use TYPO3\CMS\Core\Database\ConnectionPool;
+use TYPO3\CMS\Core\Site\Entity\Site;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -33,6 +37,8 @@ abstract class AbstractIndexer implements SearchIndexerInterface
 
     protected ?AnswerCacheService $answerCacheService = null;
 
+    protected ?ChunkIndexingService $chunkIndexingService = null;
+
     public function injectBackendRegistry(BackendRegistry $backendRegistry): void
     {
         $this->backendRegistry = $backendRegistry;
@@ -51,6 +57,11 @@ abstract class AbstractIndexer implements SearchIndexerInterface
     public function injectAnswerCacheService(AnswerCacheService $answerCacheService): void
     {
         $this->answerCacheService = $answerCacheService;
+    }
+
+    public function injectChunkIndexingService(ChunkIndexingService $chunkIndexingService): void
+    {
+        $this->chunkIndexingService = $chunkIndexingService;
     }
 
     /**
@@ -84,9 +95,15 @@ abstract class AbstractIndexer implements SearchIndexerInterface
             $document = $document->withAdditionalField('languageCode', $languageCode);
         }
 
-        $this->trackContentChange($document);
+        $document = $document->withContentChanged($this->trackContentChange($document));
 
         $this->backendRegistry->getActive()->indexDocument($document);
+
+        // Independent of $document->contentChanged — see ChunkIndexingService's own
+        // docblock for why chunk indexing needs its own per-chunk hash comparison
+        // rather than trusting the whole-document flag (SPEC-v3-caching-chunking.md
+        // Phase D).
+        $this->chunkIndexingService?->indexChunks($document);
     }
 
     /**
@@ -96,20 +113,29 @@ abstract class AbstractIndexer implements SearchIndexerInterface
      * document as context. ContentHashService/AnswerCacheService are optional
      * (nullable, setter-injected like eventDispatcher above) so indexer tests that
      * don't need this side effect don't have to wire it up.
+     *
+     * The return value also feeds SearchDocumentInput::$contentChanged
+     * (SPEC-v3-caching-chunking.md Phase B) — the same hash comparison that gates
+     * cache invalidation also tells SearchBackendInterface implementations whether
+     * re-embedding this document is necessary. When the services aren't injected at
+     * all, this returns true (pre-Phase-B behaviour: always treat as changed, so
+     * embedding is never silently skipped just because hash tracking isn't wired up).
      */
-    private function trackContentChange(SearchDocumentInput $document): void
+    private function trackContentChange(SearchDocumentInput $document): bool
     {
         if ($this->contentHashService === null || $this->answerCacheService === null) {
-            return;
+            return true;
         }
 
         $newHash = $this->contentHashService->computeContentHash($document->content);
         if (!$this->contentHashService->hasContentChanged($document->type, $document->uid, $newHash)) {
-            return;
+            return false;
         }
 
         $this->contentHashService->setContentHash($document->type, $document->uid, $newHash);
         $this->answerCacheService->invalidateForUrl($document->url);
+
+        return true;
     }
 
     /**
@@ -155,6 +181,7 @@ abstract class AbstractIndexer implements SearchIndexerInterface
     protected function removeDocument(int $uid): void
     {
         $this->contentHashService?->removeContentHash($this->getType(), $uid);
+        $this->chunkIndexingService?->removeChunks($this->getType(), $uid);
 
         $this->backendRegistry->getActive()->removeDocument($this->getType(), $uid);
     }
@@ -190,6 +217,81 @@ abstract class AbstractIndexer implements SearchIndexerInterface
         }
 
         return $uids;
+    }
+
+    /**
+     * Resolves the page id to target when generating an Extbase plugin detail
+     * URL from a background/CLI context — an indexer has no "current page" to
+     * infer from the way a real frontend request does, and the record's own
+     * storage folder ($record->getPid()) is essentially never the page that
+     * actually renders the plugin, so it can't be used directly either.
+     *
+     * Reads the first page from the named Extbase route enhancer's
+     * `limitToPages` (config/sites/{site}/config.yaml) instead of a
+     * hardcoded page UID, so this keeps working if the page tree changes or
+     * this indexer is reused on a different site copy.
+     *
+     * A `limitToPages` entry may itself be a page *translation* row (its own
+     * uid, distinct from the default-language page) — PageRouter::generateUri()
+     * expects the default-language uid for its page argument; passing a
+     * translation's own uid produces a URL combining that translation's slug
+     * with a record slug resolved without any language filtering, which
+     * matches no real route. Resolved back to the default-language page here
+     * so callers never have to think about it.
+     *
+     * @return int The resolved page id, or $fallbackPageId if no matching
+     *   route enhancer is configured (e.g. running against an environment
+     *   where it hasn't been set up) — buildUrl() implementations should
+     *   already be falling back gracefully in that case, same as before this
+     *   existed.
+     */
+    protected function resolvePluginTargetPageId(
+        Site $site,
+        string $extensionName,
+        string $pluginName,
+        int $fallbackPageId,
+    ): int {
+        foreach ($site->getConfiguration()['routeEnhancers'] ?? [] as $enhancer) {
+            if (($enhancer['extension'] ?? null) !== $extensionName || ($enhancer['plugin'] ?? null) !== $pluginName) {
+                continue;
+            }
+
+            $limitToPages = $enhancer['limitToPages'] ?? [];
+            $firstPageId = reset($limitToPages);
+
+            if ($firstPageId === false) {
+                break;
+            }
+
+            return $this->resolveDefaultLanguagePageId((int) $firstPageId);
+        }
+
+        return $fallbackPageId;
+    }
+
+    private function resolveDefaultLanguagePageId(int $pageId): int
+    {
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('pages');
+        $queryBuilder->getRestrictions()->removeAll();
+
+        $row = $queryBuilder
+            ->select('sys_language_uid', 'l10n_parent')
+            ->from('pages')
+            ->where(
+                $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($pageId, Connection::PARAM_INT)),
+            )
+            ->executeQuery()
+            ->fetchAssociative();
+
+        if ($row === false) {
+            return $pageId;
+        }
+
+        if ((int) $row['sys_language_uid'] > 0 && (int) $row['l10n_parent'] > 0) {
+            return (int) $row['l10n_parent'];
+        }
+
+        return $pageId;
     }
 
     abstract protected function buildContent(object $record): string;

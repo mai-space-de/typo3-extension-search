@@ -8,7 +8,7 @@ use Maispace\MaiSearch\Controller\Backend\SearchBackendController;
 use Maispace\MaiSearch\Domain\Service\IndexManagementService;
 use Maispace\MaiSearch\Domain\Service\IndexQueueProcessor;
 use Maispace\MaiSearch\Domain\Service\ProvisioningService;
-use Maispace\MaiSearch\Domain\Solr\ConnectionFactory;
+use Maispace\MaiSearch\Service\AnswerCacheService;
 use Maispace\MaiSearch\Service\IndexerRegistry;
 use Maispace\MaiSearch\Service\IndexQueueRepository;
 use PHPUnit\Framework\Attributes\Test;
@@ -40,17 +40,6 @@ final class SearchBackendControllerTest extends TestCase
         $param = $this->findParam($params, 'indexManagementService');
         self::assertInstanceOf(\ReflectionNamedType::class, $param->getType());
         self::assertSame(IndexManagementService::class, $param->getType()->getName());
-    }
-
-    #[Test]
-    public function controllerHasConnectionFactoryDependency(): void
-    {
-        $params = (new \ReflectionMethod(SearchBackendController::class, '__construct'))
-            ->getParameters();
-
-        $param = $this->findParam($params, 'connectionFactory');
-        self::assertInstanceOf(\ReflectionNamedType::class, $param->getType());
-        self::assertSame(ConnectionFactory::class, $param->getType()->getName());
     }
 
     #[Test]
@@ -124,6 +113,33 @@ final class SearchBackendControllerTest extends TestCase
     }
 
     #[Test]
+    public function controllerHasAnswerCacheServiceDependency(): void
+    {
+        $params = (new \ReflectionMethod(SearchBackendController::class, '__construct'))
+            ->getParameters();
+
+        $param = $this->findParam($params, 'answerCacheService');
+        self::assertInstanceOf(\ReflectionNamedType::class, $param->getType());
+        self::assertSame(AnswerCacheService::class, $param->getType()->getName());
+    }
+
+    #[Test]
+    public function clearAnswerCacheActionMethodExists(): void
+    {
+        self::assertTrue(method_exists(SearchBackendController::class, 'clearAnswerCacheAction'));
+    }
+
+    #[Test]
+    public function clearAnswerCacheActionReturnsResponseInterface(): void
+    {
+        $returnType = (new \ReflectionMethod(SearchBackendController::class, 'clearAnswerCacheAction'))
+            ->getReturnType();
+
+        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        self::assertSame(ResponseInterface::class, $returnType->getName());
+    }
+
+    #[Test]
     public function provisionActionMethodExists(): void
     {
         self::assertTrue(method_exists(SearchBackendController::class, 'provisionAction'));
@@ -178,6 +194,22 @@ final class SearchBackendControllerTest extends TestCase
     }
 
     #[Test]
+    public function queueStatusActionMethodExists(): void
+    {
+        self::assertTrue(method_exists(SearchBackendController::class, 'queueStatusAction'));
+    }
+
+    #[Test]
+    public function queueStatusActionReturnsResponseInterface(): void
+    {
+        $returnType = (new \ReflectionMethod(SearchBackendController::class, 'queueStatusAction'))
+            ->getReturnType();
+
+        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        self::assertSame(ResponseInterface::class, $returnType->getName());
+    }
+
+    #[Test]
     public function processQueueActionMethodExists(): void
     {
         self::assertTrue(method_exists(SearchBackendController::class, 'processQueueAction'));
@@ -217,6 +249,54 @@ final class SearchBackendControllerTest extends TestCase
         self::assertSame(42, $result[0]['recordUid']);
         self::assertSame(date('Y-m-d H:i:s', 1000), $result[0]['queuedDate']);
         self::assertSame('', $result[0]['processedDate']);
+    }
+
+    #[Test]
+    public function buildQueueProgressComputesTotalAndPercentages(): void
+    {
+        $repository = $this->createMock(IndexQueueRepository::class);
+        $repository->method('countByStatus')->willReturn([
+            'pending' => 1,
+            'processing' => 1,
+            'done' => 2,
+            'failed' => 0,
+        ]);
+
+        $controller = new \ReflectionClass(SearchBackendController::class)->newInstanceWithoutConstructor();
+        $property = new \ReflectionProperty(SearchBackendController::class, 'indexQueueRepository');
+        $property->setValue($controller, $repository);
+
+        $method = new \ReflectionMethod(SearchBackendController::class, 'buildQueueProgress');
+        $result = $method->invoke($controller);
+
+        self::assertSame(4, $result['total']);
+        self::assertSame(25.0, $result['percentages']['pending']);
+        self::assertSame(25.0, $result['percentages']['processing']);
+        self::assertSame(50.0, $result['percentages']['done']);
+        self::assertSame(0.0, $result['percentages']['failed']);
+    }
+
+    #[Test]
+    public function buildQueueProgressReturnsZeroPercentagesWhenEmpty(): void
+    {
+        $repository = $this->createMock(IndexQueueRepository::class);
+        $repository->method('countByStatus')->willReturn([
+            'pending' => 0,
+            'processing' => 0,
+            'done' => 0,
+            'failed' => 0,
+        ]);
+
+        $controller = new \ReflectionClass(SearchBackendController::class)->newInstanceWithoutConstructor();
+        $property = new \ReflectionProperty(SearchBackendController::class, 'indexQueueRepository');
+        $property->setValue($controller, $repository);
+
+        $method = new \ReflectionMethod(SearchBackendController::class, 'buildQueueProgress');
+        $result = $method->invoke($controller);
+
+        self::assertSame(0, $result['total']);
+        self::assertSame(0.0, $result['percentages']['pending']);
+        self::assertSame(0.0, $result['percentages']['done']);
     }
 
     #[Test]

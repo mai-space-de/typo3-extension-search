@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Maispace\MaiSearch\Tests\Unit\Domain\Service;
 
+use Maispace\MaiSearch\Configuration\RagConfiguration;
 use Maispace\MaiSearch\Domain\Dto\SearchResult;
 use Maispace\MaiSearch\Domain\Dto\SourceReference;
 use Maispace\MaiSearch\Domain\Dto\SynthesisResult;
@@ -24,6 +25,7 @@ final class SearchSynthesisServiceTest extends TestCase
 {
     private ProviderRegistry&MockObject $providerRegistry;
     private ChatProviderInterface&MockObject $chatProvider;
+    private RagConfiguration&MockObject $ragConfiguration;
     private SearchSynthesisService $service;
 
     protected function setUp(): void
@@ -31,6 +33,8 @@ final class SearchSynthesisServiceTest extends TestCase
         $this->providerRegistry = $this->createMock(ProviderRegistry::class);
         $this->chatProvider = $this->createMock(ChatProviderInterface::class);
         $this->providerRegistry->method('getActiveChatProvider')->willReturn($this->chatProvider);
+        $this->ragConfiguration = $this->createMock(RagConfiguration::class);
+        $this->ragConfiguration->method('getAnswerCacheTtl')->willReturn(3600);
 
         // AnswerCacheService is final and can't be mocked directly — wrap a mocked
         // cache frontend instead, always missing so existing behavior (always call
@@ -38,7 +42,7 @@ final class SearchSynthesisServiceTest extends TestCase
         $cache = $this->createMock(FrontendInterface::class);
         $cache->method('get')->willReturn(false);
 
-        $this->service = new SearchSynthesisService($this->providerRegistry, $this->wrapCache($cache));
+        $this->service = new SearchSynthesisService($this->providerRegistry, $this->wrapCache($cache), $this->ragConfiguration);
     }
 
     private function wrapCache(FrontendInterface $cache): AnswerCacheService
@@ -309,7 +313,7 @@ final class SearchSynthesisServiceTest extends TestCase
     {
         $cache = $this->createMock(FrontendInterface::class);
         $cache->method('get')->willReturn('cached answer');
-        $service = new SearchSynthesisService($this->providerRegistry, $this->wrapCache($cache));
+        $service = new SearchSynthesisService($this->providerRegistry, $this->wrapCache($cache), $this->ragConfiguration);
 
         $this->chatProvider->expects(self::never())->method('complete');
 
@@ -323,7 +327,7 @@ final class SearchSynthesisServiceTest extends TestCase
     {
         $cache = $this->createMock(FrontendInterface::class);
         $cache->method('get')->willReturn('cached answer');
-        $service = new SearchSynthesisService($this->providerRegistry, $this->wrapCache($cache));
+        $service = new SearchSynthesisService($this->providerRegistry, $this->wrapCache($cache), $this->ragConfiguration);
 
         $result = $service->synthesise('query', [$this->makeResult(title: 'A', url: '/a')], true);
 
@@ -344,7 +348,7 @@ final class SearchSynthesisServiceTest extends TestCase
             self::anything(),
             self::anything(),
         );
-        $service = new SearchSynthesisService($this->providerRegistry, $this->wrapCache($cache));
+        $service = new SearchSynthesisService($this->providerRegistry, $this->wrapCache($cache), $this->ragConfiguration);
 
         $result = $service->synthesise('query', [$this->makeResult(url: '/a')], true);
 

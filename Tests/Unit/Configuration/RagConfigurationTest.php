@@ -29,6 +29,10 @@ final class RagConfigurationTest extends TestCase
         self::assertSame(5, $configuration->getTopN());
         self::assertFalse($configuration->isStreamingEnabled());
         self::assertSame(6, $configuration->getHistoryMaxTurns());
+        self::assertSame(86400, $configuration->getQueryEmbeddingCacheTtl());
+        self::assertSame(3600, $configuration->getAnswerCacheTtl());
+        self::assertSame(500, $configuration->getChunkSize());
+        self::assertSame(50, $configuration->getChunkOverlap());
     }
 
     #[Test]
@@ -40,6 +44,10 @@ final class RagConfigurationTest extends TestCase
             'ragTopN' => '8',
             'ragStreamingEnabled' => '1',
             'ragHistoryMaxTurns' => '10',
+            'queryEmbeddingCacheTtl' => '43200',
+            'ragAnswerCacheTtl' => '1800',
+            'chunkSize' => '800',
+            'chunkOverlap' => '100',
         ]);
 
         self::assertTrue($configuration->isRerankEnabled());
@@ -47,6 +55,38 @@ final class RagConfigurationTest extends TestCase
         self::assertSame(8, $configuration->getTopN());
         self::assertTrue($configuration->isStreamingEnabled());
         self::assertSame(10, $configuration->getHistoryMaxTurns());
+        self::assertSame(43200, $configuration->getQueryEmbeddingCacheTtl());
+        self::assertSame(1800, $configuration->getAnswerCacheTtl());
+        self::assertSame(800, $configuration->getChunkSize());
+        self::assertSame(100, $configuration->getChunkOverlap());
+    }
+
+    #[Test]
+    public function cacheTtlsClampToZeroNotNegative(): void
+    {
+        $configuration = $this->createConfiguration([
+            'queryEmbeddingCacheTtl' => '-1',
+            'ragAnswerCacheTtl' => '-1',
+        ]);
+
+        self::assertSame(0, $configuration->getQueryEmbeddingCacheTtl());
+        self::assertSame(0, $configuration->getAnswerCacheTtl());
+    }
+
+    #[Test]
+    public function chunkSizeClampsToAtLeastOne(): void
+    {
+        $configuration = $this->createConfiguration(['chunkSize' => '0']);
+
+        self::assertSame(1, $configuration->getChunkSize());
+    }
+
+    #[Test]
+    public function chunkOverlapNeverReachesOrExceedsChunkSize(): void
+    {
+        $configuration = $this->createConfiguration(['chunkSize' => '100', 'chunkOverlap' => '500']);
+
+        self::assertSame(99, $configuration->getChunkOverlap());
     }
 
     #[Test]

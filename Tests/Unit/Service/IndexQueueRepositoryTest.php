@@ -240,11 +240,11 @@ final class IndexQueueRepositoryTest extends TestCase
     // ─── cleanupOld ─────────────────────────────────────────────────────────
 
     #[Test]
-    public function cleanupOldReturnsZeroWhenNothingToDelete(): void
+    public function cleanupOldDoesNothingWhenTotalIsAtOrBelowRetention(): void
     {
         $queryBuilder = $this->createQueryBuilderMock();
         $result = $this->createMock(Result::class);
-        $result->method('fetchFirstColumn')->willReturn([]);
+        $result->method('fetchOne')->willReturn('42');
         $queryBuilder->method('executeQuery')->willReturn($result);
         $queryBuilder->expects(self::never())->method('delete');
 
@@ -253,16 +253,39 @@ final class IndexQueueRepositoryTest extends TestCase
             ->with(self::TABLE)
             ->willReturn($queryBuilder);
 
-        self::assertSame(0, $this->subject->cleanupOld());
+        self::assertSame(0, $this->subject->cleanupOld(200));
     }
 
     #[Test]
-    public function cleanupOldDeletesFoundRows(): void
+    public function cleanupOldDoesNotWipeOutJobsJustMarkedDoneWhenBacklogIsSmall(): void
+    {
+        // Regression: the total (done + failed) backlog is only 3 — smaller than
+        // the retention count — so nothing must be deleted, even though a naive
+        // "delete up to N rows" implementation would happily remove all 3,
+        // including ones just written by the same processBatch() run.
+        $queryBuilder = $this->createQueryBuilderMock();
+        $result = $this->createMock(Result::class);
+        $result->method('fetchOne')->willReturn('3');
+        $queryBuilder->method('executeQuery')->willReturn($result);
+        $queryBuilder->expects(self::never())->method('delete');
+
+        $this->connectionPool
+            ->method('getQueryBuilderForTable')
+            ->with(self::TABLE)
+            ->willReturn($queryBuilder);
+
+        self::assertSame(0, $this->subject->cleanupOld(200));
+    }
+
+    #[Test]
+    public function cleanupOldDeletesOnlyTheOldestRowsBeyondRetention(): void
     {
         $queryBuilder = $this->createQueryBuilderMock();
         $result = $this->createMock(Result::class);
+        $result->method('fetchOne')->willReturn('250');
         $result->method('fetchFirstColumn')->willReturn([1, 2, 3]);
         $queryBuilder->method('executeQuery')->willReturn($result);
+        $queryBuilder->expects(self::once())->method('setMaxResults')->with(50)->willReturnSelf();
         $queryBuilder->expects(self::once())->method('delete')->with(self::TABLE)->willReturnSelf();
         $queryBuilder->method('executeStatement')->willReturn(3);
 
@@ -271,6 +294,6 @@ final class IndexQueueRepositoryTest extends TestCase
             ->with(self::TABLE)
             ->willReturn($queryBuilder);
 
-        self::assertSame(3, $this->subject->cleanupOld());
+        self::assertSame(3, $this->subject->cleanupOld(200));
     }
 }

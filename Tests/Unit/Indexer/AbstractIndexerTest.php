@@ -11,6 +11,7 @@ use Maispace\MaiSearch\Domain\Service\SearchBackendInterface;
 use Maispace\MaiSearch\Indexer\AbstractIndexer;
 use Maispace\MaiSearch\Service\AnswerCacheService;
 use Maispace\MaiSearch\Service\BackendRegistry;
+use Maispace\MaiSearch\Service\ChunkIndexingService;
 use Maispace\MaiSearch\Service\ContentHashService;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -22,6 +23,8 @@ use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Expression\ExpressionBuilder;
 use TYPO3\CMS\Core\Database\Query\QueryBuilder;
 use TYPO3\CMS\Core\Database\Query\Restriction\QueryRestrictionContainerInterface;
+use TYPO3\CMS\Core\Site\Entity\Site;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 final class AbstractIndexerTest extends TestCase
 {
@@ -88,6 +91,15 @@ final class AbstractIndexerTest extends TestCase
             public function publicRemoveDocument(int $uid): void
             {
                 $this->removeDocument($uid);
+            }
+
+            public function publicResolvePluginTargetPageId(
+                Site $site,
+                string $extensionName,
+                string $pluginName,
+                int $fallbackPageId,
+            ): int {
+                return $this->resolvePluginTargetPageId($site, $extensionName, $pluginName, $fallbackPageId);
             }
         };
 
@@ -317,9 +329,66 @@ final class AbstractIndexerTest extends TestCase
         $this->subject->injectContentHashService($contentHashService);
         $this->subject->injectAnswerCacheService($answerCacheService);
 
+        $this->activeBackend
+            ->expects(self::once())
+            ->method('indexDocument')
+            ->with(self::callback(
+                static fn(SearchDocumentInput $sent): bool => $sent->contentChanged === false,
+            ));
+
+        $this->subject->publicSendDocument($document);
+    }
+
+    // ── chunk indexing wiring (SPEC-v3-caching-chunking.md Phase D) ─────────────
+
+    #[Test]
+    public function sendDocumentIndexesChunksWhenServiceIsInjected(): void
+    {
+        $document = $this->subject->publicCreateDocument(
+            type: 'news',
+            uid: 1,
+            title: 'Title',
+            content: 'Content',
+            url: '/news/1',
+            crdate: new \DateTimeImmutable('2026-05-23'),
+            boost: 1.0,
+        );
+
+        $chunkIndexingService = $this->createMock(ChunkIndexingService::class);
+        $chunkIndexingService->expects(self::once())->method('indexChunks')->with($document);
+        $this->subject->injectChunkIndexingService($chunkIndexingService);
+
         $this->activeBackend->expects(self::once())->method('indexDocument');
 
         $this->subject->publicSendDocument($document);
+    }
+
+    #[Test]
+    public function sendDocumentDoesNotFailWhenChunkIndexingServiceIsNotInjected(): void
+    {
+        $document = $this->subject->publicCreateDocument(
+            type: 'news',
+            uid: 1,
+            title: 'Title',
+            content: 'Content',
+            url: '/news/1',
+            crdate: new \DateTimeImmutable('2026-05-23'),
+            boost: 1.0,
+        );
+
+        $this->activeBackend->expects(self::once())->method('indexDocument');
+
+        $this->subject->publicSendDocument($document);
+    }
+
+    #[Test]
+    public function removeDocumentRemovesChunksWhenServiceIsInjected(): void
+    {
+        $chunkIndexingService = $this->createMock(ChunkIndexingService::class);
+        $chunkIndexingService->expects(self::once())->method('removeChunks')->with('test', 42);
+        $this->subject->injectChunkIndexingService($chunkIndexingService);
+
+        $this->subject->publicRemoveDocument(42);
     }
 
     #[Test]
@@ -343,5 +412,108 @@ final class AbstractIndexerTest extends TestCase
         $this->subject->injectContentHashService(new ContentHashService($connectionPool));
 
         $this->subject->publicRemoveDocument(42);
+    }
+
+    // ── plugin target page resolution (routing fix) ─────────────────────────
+
+    protected function tearDown(): void
+    {
+        GeneralUtility::purgeInstances();
+        parent::tearDown();
+    }
+
+    /**
+     * Stubs GeneralUtility::makeInstance(ConnectionPool::class) — used
+     * directly (not constructor-injected) by resolveDefaultLanguagePageId()
+     * — to report the given page row for whatever uid is queried.
+     */
+    private function stubPagesLookup(array|false $row): void
+    {
+        $queryBuilder = $this->createMock(QueryBuilder::class);
+        $restrictions = $this->createMock(QueryRestrictionContainerInterface::class);
+        $queryBuilder->method('getRestrictions')->willReturn($restrictions);
+        $queryBuilder->method('select')->willReturnSelf();
+        $queryBuilder->method('from')->willReturnSelf();
+        $queryBuilder->method('where')->willReturnSelf();
+        $queryBuilder->method('createNamedParameter')->willReturn(':dcValue1');
+
+        $expr = $this->createMock(ExpressionBuilder::class);
+        $expr->method('eq')->willReturn('1 = 1');
+        $queryBuilder->method('expr')->willReturn($expr);
+
+        $result = $this->createMock(Result::class);
+        $result->method('fetchAssociative')->willReturn($row);
+        $queryBuilder->method('executeQuery')->willReturn($result);
+
+        $connectionPool = $this->createMock(ConnectionPool::class);
+        $connectionPool->method('getQueryBuilderForTable')->willReturn($queryBuilder);
+
+        GeneralUtility::addInstance(ConnectionPool::class, $connectionPool);
+    }
+
+    private function siteWithEnhancer(string $extension, string $plugin, array $limitToPages): Site
+    {
+        return new Site('test', 1, [
+            'routeEnhancers' => [
+                'SomeEnhancer' => [
+                    'extension' => $extension,
+                    'plugin' => $plugin,
+                    'limitToPages' => $limitToPages,
+                ],
+            ],
+        ]);
+    }
+
+    #[Test]
+    public function resolvePluginTargetPageIdReturnsFallbackWhenNoEnhancerMatches(): void
+    {
+        $site = $this->siteWithEnhancer('MaiJobs', 'Detail', [32]);
+
+        $result = $this->subject->publicResolvePluginTargetPageId($site, 'MaiNews', 'List', 27);
+
+        self::assertSame(27, $result);
+    }
+
+    #[Test]
+    public function resolvePluginTargetPageIdReturnsFallbackWhenLimitToPagesIsEmpty(): void
+    {
+        $site = $this->siteWithEnhancer('MaiJobs', 'Detail', []);
+
+        $result = $this->subject->publicResolvePluginTargetPageId($site, 'MaiJobs', 'Detail', 27);
+
+        self::assertSame(27, $result);
+    }
+
+    #[Test]
+    public function resolvePluginTargetPageIdReturnsFirstLimitToPagesEntryForADefaultLanguagePage(): void
+    {
+        $this->stubPagesLookup(['sys_language_uid' => 0, 'l10n_parent' => 0]);
+        $site = $this->siteWithEnhancer('MaiJobs', 'Detail', [32]);
+
+        $result = $this->subject->publicResolvePluginTargetPageId($site, 'MaiJobs', 'Detail', 27);
+
+        self::assertSame(32, $result);
+    }
+
+    #[Test]
+    public function resolvePluginTargetPageIdResolvesATranslatedLimitToPagesEntryToItsDefaultLanguagePage(): void
+    {
+        $this->stubPagesLookup(['sys_language_uid' => 1, 'l10n_parent' => 6]);
+        $site = $this->siteWithEnhancer('MaiJobs', 'Detail', [38]);
+
+        $result = $this->subject->publicResolvePluginTargetPageId($site, 'MaiJobs', 'Detail', 27);
+
+        self::assertSame(6, $result);
+    }
+
+    #[Test]
+    public function resolvePluginTargetPageIdReturnsTheLimitToPagesEntryWhenPageRowIsMissing(): void
+    {
+        $this->stubPagesLookup(false);
+        $site = $this->siteWithEnhancer('MaiJobs', 'Detail', [32]);
+
+        $result = $this->subject->publicResolvePluginTargetPageId($site, 'MaiJobs', 'Detail', 27);
+
+        self::assertSame(32, $result);
     }
 }

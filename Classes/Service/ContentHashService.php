@@ -14,7 +14,7 @@ use TYPO3\CMS\Core\Database\ConnectionPool;
  * the hash is compared to detect actual content changes. This prevents unnecessary
  * cache invalidations when only metadata (timestamps, etc.) changes.
  */
-final class ContentHashService
+class ContentHashService
 {
     private const string TABLE = 'tx_maisearch_content_hash';
 
@@ -65,6 +65,21 @@ final class ContentHashService
         $existingHash = $this->getContentHash($type, $uid);
 
         return $existingHash === null || $existingHash !== $newContentHash;
+    }
+
+    /**
+     * Clears every tracked hash — used when the search index itself is cleared
+     * (IndexManagementService::clearIndex()/clearAllCores()), so a subsequent
+     * reindex doesn't wrongly skip re-embedding content that, as far as the
+     * backend is concerned, no longer exists. Without this, a cleared-then-
+     * reindexed backend would silently stay empty of vectors: every document's
+     * hash still matches what's on record here, so addEmbeddingToDocument()
+     * would "skip re-embedding" and try to carry forward a vector from a
+     * document that was just deleted.
+     */
+    public function removeAllHashes(): void
+    {
+        $this->connectionPool->getConnectionForTable(self::TABLE)->truncate(self::TABLE);
     }
 
     public function removeContentHash(string $type, int $uid): void

@@ -15,6 +15,12 @@ readonly class SearchDocumentInput
     /**
      * @param string[] $rootline Breadcrumb titles from site root to the record's parent page
      * @param array<string, mixed> $additionalFields Backend- or indexer-specific extra fields
+     * @param bool $contentChanged Whether AbstractIndexer::trackContentChange() found the
+     *   extracted content different from what's already indexed (SPEC-v3-caching-chunking.md
+     *   Phase B). Defaults to true so any caller that doesn't set it explicitly (indexers
+     *   without hash tracking wired up, or tests) gets the pre-Phase-B behaviour: always
+     *   embed. SearchBackendInterface implementations read this to skip a redundant
+     *   embedding-provider call when re-indexing content that hasn't actually changed.
      */
     public function __construct(
         public string $type,
@@ -26,6 +32,7 @@ readonly class SearchDocumentInput
         public float $boost,
         public array $rootline = [],
         public array $additionalFields = [],
+        public bool $contentChanged = true,
     ) {}
 
     public function withAdditionalField(string $key, mixed $value): self
@@ -40,6 +47,23 @@ readonly class SearchDocumentInput
             boost: $this->boost,
             rootline: $this->rootline,
             additionalFields: [...$this->additionalFields, $key => $value],
+            contentChanged: $this->contentChanged,
+        );
+    }
+
+    public function withContentChanged(bool $contentChanged): self
+    {
+        return new self(
+            type: $this->type,
+            uid: $this->uid,
+            title: $this->title,
+            content: $this->content,
+            url: $this->url,
+            crdate: $this->crdate,
+            boost: $this->boost,
+            rootline: $this->rootline,
+            additionalFields: $this->additionalFields,
+            contentChanged: $contentChanged,
         );
     }
 }

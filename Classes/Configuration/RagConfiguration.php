@@ -24,6 +24,10 @@ class RagConfiguration
     private const int DEFAULT_RERANK_WIDTH = 20;
     private const int DEFAULT_TOP_N = 5;
     private const int DEFAULT_HISTORY_MAX_TURNS = 6;
+    private const int DEFAULT_QUERY_EMBEDDING_CACHE_TTL = 86400;
+    private const int DEFAULT_ANSWER_CACHE_TTL = 3600;
+    private const int DEFAULT_CHUNK_SIZE = 500;
+    private const int DEFAULT_CHUNK_OVERLAP = 50;
 
     /**
      * @var array<string, mixed>
@@ -64,5 +68,45 @@ class RagConfiguration
     public function getHistoryMaxTurns(): int
     {
         return max(0, (int) ($this->settings['ragHistoryMaxTurns'] ?? self::DEFAULT_HISTORY_MAX_TURNS));
+    }
+
+    /**
+     * TTL for QueryEmbeddingCacheService entries (SPEC-v3.md Phase A). Query
+     * embeddings are a deterministic function of (provider, text), so — unlike
+     * the answer cache — a flat TTL is the only invalidation strategy needed.
+     */
+    public function getQueryEmbeddingCacheTtl(): int
+    {
+        return max(0, (int) ($this->settings['queryEmbeddingCacheTtl'] ?? self::DEFAULT_QUERY_EMBEDDING_CACHE_TTL));
+    }
+
+    /**
+     * TTL for AnswerCacheService entries (SPEC-v3.md Phase C). Was a hardcoded
+     * class constant on AnswerCacheService; moved here so it's configurable
+     * alongside the other RAG tuning knobs.
+     */
+    public function getAnswerCacheTtl(): int
+    {
+        return max(0, (int) ($this->settings['ragAnswerCacheTtl'] ?? self::DEFAULT_ANSWER_CACHE_TTL));
+    }
+
+    /**
+     * Maximum characters per chunk fed to ContentChunkerService
+     * (SPEC-v3-caching-chunking.md Phase D/G).
+     */
+    public function getChunkSize(): int
+    {
+        return max(1, (int) ($this->settings['chunkSize'] ?? self::DEFAULT_CHUNK_SIZE));
+    }
+
+    /**
+     * Overlapping characters between consecutive chunks — see
+     * ContentChunkerService::chunk() for why this must stay below chunk size.
+     */
+    public function getChunkOverlap(): int
+    {
+        $overlap = max(0, (int) ($this->settings['chunkOverlap'] ?? self::DEFAULT_CHUNK_OVERLAP));
+
+        return min($overlap, $this->getChunkSize() - 1);
     }
 }

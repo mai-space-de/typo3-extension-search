@@ -103,6 +103,25 @@ final class MeilisearchClientTest extends TestCase
     }
 
     #[Test]
+    public function deleteDocumentsByFilterDelegatesToIndexWithFilterOption(): void
+    {
+        $this->index->expects(self::once())->method('deleteDocuments')->with(['filter' => 'type = chunk']);
+
+        $this->client->deleteDocumentsByFilter('mai_search_de', 'type = chunk');
+    }
+
+    #[Test]
+    public function configureEmbedderSendsAUserProvidedEmbedderDefinition(): void
+    {
+        $this->index
+            ->expects(self::once())
+            ->method('updateEmbedders')
+            ->with(['default' => ['source' => 'userProvided', 'dimensions' => 1024]]);
+
+        $this->client->configureEmbedder('mai_search_de', 'default', 1024);
+    }
+
+    #[Test]
     public function searchMapsSdkResultIntoSearchResponse(): void
     {
         $sdkResult = $this->createMock(SearchResult::class);

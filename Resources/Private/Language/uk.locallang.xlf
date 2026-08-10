@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+    <file source-language="en" target-language="uk" datatype="plaintext" original="EXT:mai_search/Resources/Private/Language/locallang.xlf">
+        <header/>
+        <body>
+            <trans-unit id="search.heading">
+                <source>Search</source>
+                <target>Пошук</target>
+            </trans-unit>
+            <trans-unit id="search.lead">
+                <source>Find offers, news and pages about supporting refugees in Pulheim.</source>
+                <target>Знайдіть пропозиції, новини та сторінки про підтримку біженців у Пульгаймі.</target>
+            </trans-unit>
+            <trans-unit id="search.placeholder">
+                <source>Search...</source>
+                <target>Пошук...</target>
+            </trans-unit>
+            <trans-unit id="search.submit">
+                <source>Search</source>
+                <target>Шукати</target>
+            </trans-unit>
+            <trans-unit id="search.results.count">
+                <source>%d results for &quot;%s&quot;</source>
+                <target>%d результатів для «%s»</target>
+            </trans-unit>
+            <trans-unit id="search.results.none">
+                <source>No results found.</source>
+                <target>Нічого не знайдено.</target>
+            </trans-unit>
+            <trans-unit id="search.label">
+                <source>Site search</source>
+                <target>Пошук по сайту</target>
+            </trans-unit>
+            <trans-unit id="search.results.list_label">
+                <source>Search results</source>
+                <target>Результати пошуку</target>
+            </trans-unit>
+            <trans-unit id="search.synthesis.label">
+                <source>AI-generated answer</source>
+                <target>Відповідь, згенерована ШІ</target>
+            </trans-unit>
+            <trans-unit id="search.synthesis.title">
+                <source>AI Answer</source>
+                <target>Відповідь ШІ</target>
+            </trans-unit>
+            <trans-unit id="search.synthesis.disclaimer">
+                <source>AI-generated summary — verify with search results below.</source>
+                <target>Підсумок ШІ — перевірте за результатами пошуку нижче.</target>
+            </trans-unit>
+            <trans-unit id="search.synthesis.unavailable">
+                <source>AI answers are temporarily unavailable.</source>
+                <target>Відповіді ШІ тимчасово недоступні.</target>
+            </trans-unit>
+            <trans-unit id="search.synthesis.sources">
+                <source>Sources</source>
+                <target>Джерела</target>
+            </trans-unit>
+            <trans-unit id="search.synthesis.loading">
+                <source>Generating answer…</source>
+                <target>Генеруємо відповідь…</target>
+            </trans-unit>
+            <trans-unit id="search.synthesis.searching">
+                <source>Searching…</source>
+                <target>Пошук…</target>
+            </trans-unit>
+            <trans-unit id="search.synthesis.error">
+                <source>The answer could not be generated.</source>
+                <target>Не вдалося згенерувати відповідь.</target>
+            </trans-unit>
+        </body>
+    </file>
+</xliff>

@@ -99,7 +99,7 @@ final class IndexCommand extends Command
 
     private function showStats(SymfonyStyle $io): int
     {
-        $io->title('Solr Index Statistics');
+        $io->title('Search Index Statistics');
 
         try {
             $stats = $this->indexManagementService->getIndexStats();
@@ -113,7 +113,7 @@ final class IndexCommand extends Command
             $io->newLine();
 
             foreach ($stats['cores'] as $language => $coreStats) {
-                $io->section(sprintf('Core: %s (%s)', $coreStats['core'], $language));
+                $io->section(sprintf('Index: %s (%s)', $coreStats['core'], $language));
                 $io->text(sprintf('  Documents: %d', $coreStats['totalDocuments']));
 
                 if ($coreStats['types'] !== []) {

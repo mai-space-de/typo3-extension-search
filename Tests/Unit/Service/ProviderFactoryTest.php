@@ -37,7 +37,7 @@ class ProviderFactoryTest extends TestCase
     public function createOpenAiEmbeddingProviderUsesConfiguredSettings(): void
     {
         $factory = $this->createFactory([
-            'openai' => ['apiKey' => 'sk-test', 'embeddingModel' => 'text-embedding-3-large'],
+            'openai' => ['apiKey' => 'sk-test', 'embeddingModel' => 'text-embedding-3-large', 'dimensions' => '3072'],
         ]);
 
         $provider = $factory->createOpenAiEmbeddingProvider();
@@ -45,6 +45,7 @@ class ProviderFactoryTest extends TestCase
         self::assertInstanceOf(OpenAiEmbeddingProvider::class, $provider);
         self::assertSame('sk-test', $this->privateProperty($provider, 'apiKey'));
         self::assertSame('text-embedding-3-large', $this->privateProperty($provider, 'model'));
+        self::assertSame(3072, $provider->getDimensions());
     }
 
     #[Test]
@@ -54,27 +55,37 @@ class ProviderFactoryTest extends TestCase
 
         self::assertSame('', $this->privateProperty($provider, 'apiKey'));
         self::assertSame('text-embedding-3-small', $this->privateProperty($provider, 'model'));
+        self::assertSame(1536, $provider->getDimensions());
     }
 
     #[Test]
     public function createOllamaEmbeddingProviderUsesConfiguredSettings(): void
     {
         $factory = $this->createFactory([
-            'ollama' => ['baseUrl' => 'http://ollama.local:11434', 'embeddingModel' => 'custom-embed'],
+            'ollama' => ['baseUrl' => 'http://ollama.local:11434', 'embeddingModel' => 'bge-m3', 'dimensions' => '1024'],
         ]);
 
         $provider = $factory->createOllamaEmbeddingProvider();
 
         self::assertInstanceOf(OllamaEmbeddingProvider::class, $provider);
         self::assertSame('http://ollama.local:11434', $this->privateProperty($provider, 'baseUrl'));
-        self::assertSame('custom-embed', $this->privateProperty($provider, 'model'));
+        self::assertSame('bge-m3', $this->privateProperty($provider, 'model'));
+        self::assertSame(1024, $provider->getDimensions());
+    }
+
+    #[Test]
+    public function createOllamaEmbeddingProviderUsesDefaultDimensionsWhenUnconfigured(): void
+    {
+        $provider = $this->createFactory([])->createOllamaEmbeddingProvider();
+
+        self::assertSame(768, $provider->getDimensions());
     }
 
     #[Test]
     public function createCustomEmbeddingProviderUsesConfiguredSettings(): void
     {
         $factory = $this->createFactory([
-            'custom' => ['embeddingUrl' => 'https://embed.example.com', 'apiKey' => 'custom-key'],
+            'custom' => ['embeddingUrl' => 'https://embed.example.com', 'apiKey' => 'custom-key', 'dimensions' => '512'],
         ]);
 
         $provider = $factory->createCustomEmbeddingProvider();
@@ -82,6 +93,7 @@ class ProviderFactoryTest extends TestCase
         self::assertInstanceOf(CustomEmbeddingProvider::class, $provider);
         self::assertSame('https://embed.example.com', $this->privateProperty($provider, 'url'));
         self::assertSame('custom-key', $this->privateProperty($provider, 'apiKey'));
+        self::assertSame(512, $provider->getDimensions());
     }
 
     #[Test]

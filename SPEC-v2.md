@@ -728,17 +728,14 @@ is the provider/RAG layer, audited against `mai_search`'s actual code (not assum
       When rerank is off, the existing page-1 result set is reused as RAG
       context directly (no behaviour change from before this phase).
       `ragRerankWidth`/`ragTopN` live in Extension Configuration (see below).
-  - `mai-search:cleanup`-equivalent orphan detection (`smart_search`'s
-        `smartsearch:cleanup` + `OrphanProviderInterface`, refuses to act on a
-        suspiciously empty live-identifier list unless `--allow-empty`). Nothing
-        in `mai_search` currently catches documents left behind by hard deletes,
-        disabled extensions, or migration errors outside the `DataHandlerHook` path.
-        **Still deferred.**
-  - Reviving `ContentChunkerService` (confirmed still dead/unwired code) using
-        `smart_search`'s `ParagraphChunker`/`SlidingWindowChunker` as a better
-        starting point than the current unvalidated sliding-window-only version —
-        only relevant once/if the chunk-index RAG upgrade above actually happens.
-        **Still deferred.**
+  - [x] `mai-search:cleanup`-equivalent orphan detection — done as
+        `mai-search:cleanup-chunks` (`--allow-empty` safety net included), see
+        **SPEC-v3-caching-chunking.md Phase F**.
+  - [x] Reviving `ContentChunkerService` — done, wired into `AbstractIndexer` via
+        `ChunkIndexingService`; kept the existing sliding-window implementation
+        rather than porting `smart_search`'s `ParagraphChunker` (no problem with
+        the sliding-window approach surfaced once it was actually exercised).
+        See **SPEC-v3-caching-chunking.md Phase D**.
   - Not transferable at all: vector storage/codec (`mai_search` doesn't own
         vector storage), metadata strict-equality filtering, and RRF hybrid-search
         fusion (Solr/Meilisearch already own equivalent ranking natively).
@@ -754,30 +751,24 @@ is the provider/RAG layer, audited against `mai_search`'s actual code (not assum
   whereas `ExtensionConfiguration` is readable from anywhere regardless of
   request stage — the same accessor is shared by `SearchController` and the
   middleware so both branch on rerank/streaming identically.
-- [ ] **Not done, newly identified while implementing the above — raised
-      mid-session, deliberately scoped as backlog, not built yet:**
-  - **No cached generated responses exist today** — `SearchSynthesisService`/
-        `SearchStreamMiddleware` call the active chat provider live on every
-        request, so there is currently nothing to invalidate. Audited before
-        writing this down: `DataHandlerHook` already re-indexes a record
-        immediately on save and removes it on delete, so the *search index*
-        itself is never stale for more than one save cycle — the gap is
-        specifically an *answer cache*, which doesn't exist.
-  - If a synthesis-answer cache is added later (TYPO3 Caching Framework,
-        keyed by a hash of query + resolved context IDs + conversation history),
-        it needs invalidation tied to content changes, which in turn needs two
-        prerequisites neither of which exist yet:
-        1. **Content-hash tracking** per indexed document/chunk, so a save that
-           doesn't actually change extracted content doesn't force a cache miss
-           (or, once chunking exists, doesn't force needless re-embedding).
-        2. **Orphan chunk cleanup** (see the still-deferred item above) — without
-           it, a document that shrinks from 5 chunks to 3 leaves stale chunks 4–5
-           behind, which a naive "invalidate what changed" cache scheme would miss.
-  - Decided explicitly: **not building any of this now.** Reranking, multi-turn
-        history, and streaming (this addendum) are being finished and validated
-        first; the answer-cache + content-hash + orphan-cleanup + chunker-revival
-        cluster is one coherent follow-up piece of work, tracked here rather than
-        started mid-flight on top of three already-large in-progress features.
+- [x] **Done — the answer-cache + content-hash + orphan-cleanup + chunker-revival
+      cluster flagged here as backlog was built as its own follow-up spec,
+      SPEC-v3-caching-chunking.md, once reranking/multi-turn/streaming
+      (this addendum) had shipped and settled:**
+  - Answer cache (`AnswerCacheService`) — Phase 7 (this file) already covered
+        the basic query+context+history-keyed cache and per-URL invalidation on
+        content change. SPEC-v3 Phase C closed the remaining gaps: streaming
+        responses now check/populate the same cache (served as a fast SSE burst
+        on a hit), `invalidateAll()` is wired to reindex/clear-index, the TTL is
+        configurable, and there's a manual "clear answer cache" button.
+  - Content-hash tracking — `ContentHashService` (this file's Phase 7 work)
+        covered whole-document hashes; SPEC-v3 Phase B additionally gates
+        document *embedding* on it (skip re-embedding unchanged content), and
+        Phase D added the chunk-level equivalent in `OrphanChunkCleanupService`.
+  - Orphan chunk cleanup and chunker revival — see the two items directly above
+        (now `[x]`), SPEC-v3 Phases D–F.
+  - Query-time embedding cost (a gap not yet identified when this addendum was
+        written) — closed by SPEC-v3 Phase A's `QueryEmbeddingCacheService`.
 
 ### Phase 8 — Frontend/UX quality-of-life (P3)
 

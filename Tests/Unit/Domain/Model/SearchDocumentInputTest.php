@@ -55,6 +55,45 @@ class SearchDocumentInputTest extends TestCase
 
         self::assertSame([], $document->rootline);
         self::assertSame([], $document->additionalFields);
+        self::assertTrue($document->contentChanged);
+    }
+
+    #[Test]
+    public function withContentChangedReturnsNewInstanceWithFlagUpdated(): void
+    {
+        $original = new SearchDocumentInput(
+            type: 'news',
+            uid: 42,
+            title: 'Test Title',
+            content: 'Test content body',
+            url: '/news/test-title',
+            crdate: new \DateTimeImmutable('2026-05-23'),
+            boost: 1.0,
+        );
+
+        $unchanged = $original->withContentChanged(false);
+
+        self::assertNotSame($original, $unchanged);
+        self::assertTrue($original->contentChanged);
+        self::assertFalse($unchanged->contentChanged);
+    }
+
+    #[Test]
+    public function withAdditionalFieldPreservesContentChangedFlag(): void
+    {
+        $original = (new SearchDocumentInput(
+            type: 'news',
+            uid: 42,
+            title: 'Test Title',
+            content: 'Test content body',
+            url: '/news/test-title',
+            crdate: new \DateTimeImmutable('2026-05-23'),
+            boost: 1.0,
+        ))->withContentChanged(false);
+
+        $updated = $original->withAdditionalField('languageCode', 'de');
+
+        self::assertFalse($updated->contentChanged);
     }
 
     #[Test]

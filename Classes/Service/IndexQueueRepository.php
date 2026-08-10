@@ -63,6 +63,22 @@ class IndexQueueRepository
     }
 
     /**
+     * Deletes every row regardless of status — called at the start of a full
+     * reindex (IndexManagementService::repopulateQueue()) so a fresh reindex
+     * supersedes whatever was queued by every previous one. Without this, the
+     * backend module's "jobs in queue" and per-status counts read as a lifetime
+     * total across every reindex ever run instead of the progress of the one
+     * just kicked off — clicking "Alles neu indexieren" now defines a clean
+     * total, and clicking "Jetzt abarbeiten" any number of times only ever
+     * moves jobs between pending/processing/done/failed within that total.
+     */
+    public function clearAll(): void
+    {
+        $connection = $this->connectionPool->getConnectionForTable(self::TABLE);
+        $connection->truncate(self::TABLE);
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     public function findOpenBatch(int $limit): array
@@ -155,22 +171,48 @@ class IndexQueueRepository
     }
 
     /**
-     * Delete already-processed entries (done/failed), oldest first, in batches.
+     * Delete already-processed entries (done/failed) beyond the most recent
+     * $keep, oldest first.
+     *
+     * Called on every queue-processing run (IndexQueueProcessor::processBatch())
+     * so the table doesn't grow forever across repeated reindexes/editor saves.
+     * Bounded by a *retained* count rather than a per-call delete limit: an
+     * earlier version took a $limit of rows to delete per call, which — once the
+     * total backlog shrank below that limit — deleted the entire table on every
+     * single call, including jobs that had only just been marked done in the
+     * same run. Keeping the $keep most recent rows instead means there's always
+     * something left for the backend module's "Recent Queue Activity" view and
+     * failure diagnostics, no matter how small the backlog is when this runs.
      *
      * @return int Number of deleted rows
      */
-    public function cleanupOld(int $limit = 1000): int
+    public function cleanupOld(int $keep = 200): int
     {
-        $queryBuilder = $this->connectionPool->getQueryBuilderForTable(self::TABLE);
-        $uids = $queryBuilder
+        $countQueryBuilder = $this->connectionPool->getQueryBuilderForTable(self::TABLE);
+        $total = (int) $countQueryBuilder
+            ->count('uid')
+            ->from(self::TABLE)
+            ->where($countQueryBuilder->expr()->in(
+                'status',
+                $countQueryBuilder->createNamedParameter([self::STATUS_DONE, self::STATUS_FAILED], ArrayParameterType::STRING),
+            ))
+            ->executeQuery()
+            ->fetchOne();
+
+        if ($total <= $keep) {
+            return 0;
+        }
+
+        $selectQueryBuilder = $this->connectionPool->getQueryBuilderForTable(self::TABLE);
+        $uids = $selectQueryBuilder
             ->select('uid')
             ->from(self::TABLE)
-            ->where($queryBuilder->expr()->in(
+            ->where($selectQueryBuilder->expr()->in(
                 'status',
-                $queryBuilder->createNamedParameter([self::STATUS_DONE, self::STATUS_FAILED], ArrayParameterType::STRING),
+                $selectQueryBuilder->createNamedParameter([self::STATUS_DONE, self::STATUS_FAILED], ArrayParameterType::STRING),
             ))
             ->orderBy('processed_date', 'ASC')
-            ->setMaxResults($limit)
+            ->setMaxResults($total - $keep)
             ->executeQuery()
             ->fetchFirstColumn();
 

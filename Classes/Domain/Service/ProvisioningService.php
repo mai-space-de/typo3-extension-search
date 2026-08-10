@@ -6,9 +6,12 @@ namespace Maispace\MaiSearch\Domain\Service;
 
 use Maispace\MaiSearch\Backend\Meilisearch\ConnectionFactory as MeilisearchConnectionFactory;
 use Maispace\MaiSearch\Backend\Meilisearch\IndexNameResolver as MeilisearchIndexNameResolver;
+use Maispace\MaiSearch\Backend\Meilisearch\MeilisearchBackend;
+use Maispace\MaiSearch\Backend\Meilisearch\VectorStoreProvisioner;
 use Maispace\MaiSearch\Domain\Dto\ProvisioningResult;
 use Maispace\MaiSearch\Domain\Solr\SchemaManager;
 use Maispace\MaiSearch\Service\BackendRegistry;
+use Maispace\MaiSearch\Service\ProviderRegistry;
 use TYPO3\CMS\Core\Site\SiteFinder;
 
 /**
@@ -21,12 +24,20 @@ class ProvisioningService
 {
     private const string TYPE_FILTER_ATTRIBUTE = 'type';
 
+    /**
+     * Filterable attributes the chunk index needs (SPEC-v3-caching-chunking.md
+     * Phase E) so removeChunks() can delete-by-filter.
+     */
+    private const array CHUNK_FILTERABLE_ATTRIBUTES = ['parentType', 'parentUid'];
+
     public function __construct(
         private readonly BackendRegistry $backendRegistry,
         private readonly SchemaManager $schemaManager,
         private readonly MeilisearchConnectionFactory $meilisearchConnectionFactory,
         private readonly MeilisearchIndexNameResolver $meilisearchIndexNameResolver,
         private readonly SiteFinder $siteFinder,
+        private readonly VectorStoreProvisioner $vectorStoreProvisioner,
+        private readonly ProviderRegistry $providerRegistry,
     ) {}
 
     public function provision(): ProvisioningResult
@@ -55,12 +66,21 @@ class ProvisioningService
     private function provisionMeilisearch(): ProvisioningResult
     {
         $client = $this->meilisearchConnectionFactory->getClient();
+        $this->vectorStoreProvisioner->ensureVectorStoreEnabled();
+        $dimensions = $this->providerRegistry->getActiveEmbeddingProvider()->getDimensions();
 
         $ensured = [];
         foreach ($this->resolveSiteLanguageCodes() as $languageCode) {
             $indexUid = $this->meilisearchIndexNameResolver->forLanguage($languageCode);
             $client->ensureIndex($indexUid, [self::TYPE_FILTER_ATTRIBUTE]);
             $ensured[] = $indexUid;
+
+            // Separate index, never given an embedder on the main one above — see
+            // MeilisearchBackend's class docblock for why they can't be shared.
+            $chunkIndexUid = $this->meilisearchIndexNameResolver->forChunks($languageCode);
+            $client->ensureIndex($chunkIndexUid, self::CHUNK_FILTERABLE_ATTRIBUTES);
+            $client->configureEmbedder($chunkIndexUid, MeilisearchBackend::EMBEDDER_NAME, $dimensions);
+            $ensured[] = $chunkIndexUid;
         }
 
         return new ProvisioningResult('meilisearch', array_values(array_unique($ensured)));

@@ -39,6 +39,9 @@ openai.apiKey =
 # cat=providers/openai/20; type=string; label=OpenAI embedding model
 openai.embeddingModel = text-embedding-3-small
 
+# cat=providers/openai/21; type=int+; label=OpenAI embedding dimensions (must match the embedding model above, e.g. 1536 for text-embedding-3-small, 3072 for text-embedding-3-large)
+openai.dimensions = 1536
+
 # cat=providers/openai/30; type=string; label=OpenAI chat model
 openai.chatModel = gpt-4o-mini
 
@@ -48,11 +51,17 @@ ollama.baseUrl = http://localhost:11434
 # cat=providers/ollama/20; type=string; label=Ollama embedding model
 ollama.embeddingModel = nomic-embed-text
 
+# cat=providers/ollama/21; type=int+; label=Ollama embedding dimensions (must match the embedding model above, e.g. 768 for nomic-embed-text, 1024 for bge-m3 — Solr/Meilisearch reject vectors of the wrong size)
+ollama.dimensions = 768
+
 # cat=providers/ollama/30; type=string; label=Ollama chat model
 ollama.chatModel = llama3.1
 
 # cat=providers/custom/10; type=string; label=Custom embedding endpoint URL
 custom.embeddingUrl =
+
+# cat=providers/custom/11; type=int+; label=Custom embedding dimensions (must match whatever the endpoint above actually returns)
+custom.dimensions = 0
 
 # cat=providers/custom/20; type=string; label=Custom chat endpoint URL (OpenAI-compatible chat completions)
 custom.chatUrl =
@@ -80,6 +89,21 @@ ragStreamingEnabled = 0
 
 # cat=rag/enable/50; type=int+; label=Maximum conversation turns to retain for multi-turn RAG follow-ups (0 disables history)
 ragHistoryMaxTurns = 6
+
+# cat=rag/cache/10; type=int+; label=TTL in seconds for cached query embeddings (avoids re-embedding an identical query text for hybrid KNN rerank)
+queryEmbeddingCacheTtl = 86400
+
+# cat=rag/cache/20; type=int+; label=TTL in seconds for cached RAG answers
+ragAnswerCacheTtl = 3600
+
+# Chunk-level RAG indexing (SPEC-v3-caching-chunking.md Phase D/E) — used by
+# ContentChunkerService when the active backend supports ChunkSearchBackendInterface.
+
+# cat=rag/chunking/10; type=int+; label=Maximum characters per RAG content chunk
+chunkSize = 500
+
+# cat=rag/chunking/20; type=int+; label=Overlapping characters between consecutive chunks (must stay below chunk size)
+chunkOverlap = 50
 
 # Live search suggestions/autocomplete (SPEC-v2.md Phase 8) tuning lives here for the
 # same reason RAG rerank/streaming tuning does: SearchSuggestMiddleware is a plain

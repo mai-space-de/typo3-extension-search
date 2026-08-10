@@ -27,4 +27,30 @@ final class IndexNameResolverTest extends TestCase
         self::assertSame('mai_search', $resolver->forLanguage(null));
         self::assertSame('mai_search', $resolver->forLanguage(''));
     }
+
+    #[Test]
+    public function forChunksAppendsLanguageCodeSuffix(): void
+    {
+        $resolver = new IndexNameResolver();
+
+        self::assertSame('mai_search_chunks_de', $resolver->forChunks('de'));
+        self::assertSame('mai_search_chunks_en', $resolver->forChunks('en'));
+    }
+
+    #[Test]
+    public function forChunksReturnsBareNameWhenNoLanguageGiven(): void
+    {
+        $resolver = new IndexNameResolver();
+
+        self::assertSame('mai_search_chunks', $resolver->forChunks(null));
+        self::assertSame('mai_search_chunks', $resolver->forChunks(''));
+    }
+
+    #[Test]
+    public function forChunksIsDistinctFromForLanguage(): void
+    {
+        $resolver = new IndexNameResolver();
+
+        self::assertNotSame($resolver->forLanguage('de'), $resolver->forChunks('de'));
+    }
 }

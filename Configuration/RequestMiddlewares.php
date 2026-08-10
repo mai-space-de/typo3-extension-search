@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Maispace\MaiSearch\Middleware\SearchAnswerMiddleware;
 use Maispace\MaiSearch\Middleware\SearchStreamMiddleware;
 use Maispace\MaiSearch\Middleware\SearchSuggestMiddleware;
 
@@ -14,6 +15,15 @@ return [
         // 'before: page-resolver' is required so /api/search/* is intercepted first.
         'maispace/mai-search/search-stream-api' => [
             'target' => SearchStreamMiddleware::class,
+            'after' => [
+                'typo3/cms-frontend/site',
+            ],
+            'before' => [
+                'typo3/cms-frontend/page-resolver',
+            ],
+        ],
+        'maispace/mai-search/search-answer-api' => [
+            'target' => SearchAnswerMiddleware::class,
             'after' => [
                 'typo3/cms-frontend/site',
             ],

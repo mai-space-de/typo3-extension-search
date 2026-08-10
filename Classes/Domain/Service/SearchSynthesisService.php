@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Maispace\MaiSearch\Domain\Service;
 
+use Maispace\MaiSearch\Configuration\RagConfiguration;
 use Maispace\MaiSearch\Domain\Dto\SearchResult;
 use Maispace\MaiSearch\Domain\Dto\SourceReference;
 use Maispace\MaiSearch\Domain\Dto\SynthesisResult;
@@ -41,6 +42,7 @@ final class SearchSynthesisService
     public function __construct(
         private readonly ProviderRegistry $providerRegistry,
         private readonly AnswerCacheService $answerCacheService,
+        private readonly RagConfiguration $ragConfiguration,
     ) {}
 
     /**
@@ -65,11 +67,9 @@ final class SearchSynthesisService
             return SynthesisResult::empty();
         }
 
-        $contextUrls = $this->contextUrls($context);
-        $historyPayload = $history?->toArray() ?? [];
         $sources = $this->buildSources($context);
 
-        $cachedAnswer = $this->answerCacheService->get($query, $contextUrls, $historyPayload);
+        $cachedAnswer = $this->getCachedAnswer($query, $context, $history);
         if ($cachedAnswer !== null) {
             return new SynthesisResult($cachedAnswer, $sources);
         }
@@ -77,9 +77,43 @@ final class SearchSynthesisService
         $request = $this->buildChatRequest($query, $context, $history);
         $answer = $this->providerRegistry->getActiveChatProvider()->complete($request)->content;
 
-        $this->answerCacheService->set($query, $contextUrls, $historyPayload, $answer);
+        $this->cacheAnswer($query, $context, $history, $answer);
 
         return new SynthesisResult($answer, $sources);
+    }
+
+    /**
+     * Checks the answer cache without performing synthesis. Used by
+     * SearchStreamMiddleware (SPEC-v3-caching-chunking.md Phase C) so a repeated
+     * question is served as a fast SSE burst of the cached answer instead of a live,
+     * token-by-token chat-completion call — same cache-key semantics as synthesise()
+     * itself, since both build the key from query + context URLs + history.
+     *
+     * @param SearchResult[] $context
+     */
+    public function getCachedAnswer(string $query, array $context, ?ConversationHistory $history = null): ?string
+    {
+        return $this->answerCacheService->get($query, $this->contextUrls($context), $history?->toArray() ?? []);
+    }
+
+    /**
+     * Stores an answer produced outside synthesise() — the streaming path generates
+     * its answer token-by-token via StreamingChatProviderInterface::stream() rather
+     * than complete(), so it can't go through synthesise() itself, but must still be
+     * cached with identical key semantics so a later synchronous/streaming request
+     * for the same question hits the same cache entry.
+     *
+     * @param SearchResult[] $context
+     */
+    public function cacheAnswer(string $query, array $context, ?ConversationHistory $history, string $answer): void
+    {
+        $this->answerCacheService->set(
+            $query,
+            $this->contextUrls($context),
+            $history?->toArray() ?? [],
+            $answer,
+            $this->ragConfiguration->getAnswerCacheTtl(),
+        );
     }
 
     /**

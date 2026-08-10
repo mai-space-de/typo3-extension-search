@@ -23,7 +23,23 @@ interface MeilisearchClientInterface
 
     public function deleteDocument(string $indexUid, string|int $documentId): void;
 
+    /**
+     * Deletes every document matching a Meilisearch filter expression — used to
+     * remove all chunks of one parent document in a single call
+     * (SPEC-v3-caching-chunking.md Phase E, ChunkSearchBackendInterface::removeChunks()).
+     * The filtered fields must be declared filterable via ensureIndex().
+     */
+    public function deleteDocumentsByFilter(string $indexUid, string $filter): void;
+
     public function deleteAllDocuments(string $indexUid): void;
+
+    /**
+     * Configures a `userProvided` embedder (SPEC-v3-caching-chunking.md Phase E) —
+     * vectors are supplied by mai_search's own ProviderRegistry, not computed by
+     * Meilisearch itself, consistent with SolrBackend's KNN field. Requires the
+     * vectorStore experimental feature to be enabled first (VectorStoreProvisioner).
+     */
+    public function configureEmbedder(string $indexUid, string $embedderName, int $dimensions): void;
 
     /**
      * @param array<string, mixed> $searchParameters

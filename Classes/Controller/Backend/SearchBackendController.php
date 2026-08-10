@@ -9,7 +9,7 @@ use Maispace\MaiBase\Controller\Traits\ResponseHelpersTrait;
 use Maispace\MaiSearch\Domain\Service\IndexManagementService;
 use Maispace\MaiSearch\Domain\Service\IndexQueueProcessor;
 use Maispace\MaiSearch\Domain\Service\ProvisioningService;
-use Maispace\MaiSearch\Domain\Solr\ConnectionFactory;
+use Maispace\MaiSearch\Service\AnswerCacheService;
 use Maispace\MaiSearch\Service\IndexerRegistry;
 use Maispace\MaiSearch\Service\IndexQueueRepository;
 use Psr\Http\Message\ResponseInterface;
@@ -26,11 +26,11 @@ class SearchBackendController extends AbstractBackendController
         ModuleTemplateFactory $moduleTemplateFactory,
         IconFactory $iconFactory,
         private readonly IndexManagementService $indexManagementService,
-        private readonly ConnectionFactory $connectionFactory,
         private readonly IndexerRegistry $indexerRegistry,
         private readonly ProvisioningService $provisioningService,
         private readonly IndexQueueRepository $indexQueueRepository,
         private readonly IndexQueueProcessor $indexQueueProcessor,
+        private readonly AnswerCacheService $answerCacheService,
     ) {
         parent::__construct($moduleTemplateFactory, $iconFactory);
     }
@@ -44,7 +44,7 @@ class SearchBackendController extends AbstractBackendController
             'Search Index',
         );
 
-        $coreMapping = $this->connectionFactory->getCoreMapping();
+        $coreMapping = $this->indexManagementService->getCoreMapping();
         $indexers = $this->indexerRegistry->getAll();
 
         $indexerTypes = [];
@@ -53,6 +53,7 @@ class SearchBackendController extends AbstractBackendController
         }
 
         $indexStats = $this->indexManagementService->getIndexStats();
+        $queueProgress = $this->buildQueueProgress();
 
         $this->assignMultiple($moduleTemplate, [
             'coreMapping' => $coreMapping,
@@ -60,6 +61,8 @@ class SearchBackendController extends AbstractBackendController
             'indexerTypes' => $indexerTypes,
             'indexerCount' => count($indexerTypes),
             'indexStats' => $indexStats,
+            'queueProgress' => $queueProgress,
+            'queueStatusUrl' => $this->uriBuilder->reset()->uriFor('queueStatus'),
         ]);
 
         return $this->renderModuleResponse($moduleTemplate, 'Index');
@@ -68,7 +71,7 @@ class SearchBackendController extends AbstractBackendController
     public function reindexAction(): ResponseInterface
     {
         try {
-            $coreMapping = $this->connectionFactory->getCoreMapping();
+            $coreMapping = $this->indexManagementService->getCoreMapping();
             $indexers = $this->indexerRegistry->getAll();
 
             $enqueued = $this->indexManagementService->repopulateQueue($this->indexQueueRepository);
@@ -99,6 +102,25 @@ class SearchBackendController extends AbstractBackendController
         } catch (\Throwable $e) {
             $this->flashError(
                 sprintf('Failed to clear index: %s', $e->getMessage()),
+            );
+        }
+
+        return $this->redirect('index');
+    }
+
+    /**
+     * SPEC-v3-caching-chunking.md Phase C (gap G6): lets an admin drop a stale or
+     * incorrect RAG answer from the cache without rebuilding the whole search index.
+     */
+    public function clearAnswerCacheAction(): ResponseInterface
+    {
+        try {
+            $this->answerCacheService->invalidateAll();
+
+            $this->flashSuccess('RAG answer cache has been cleared.');
+        } catch (\Throwable $e) {
+            $this->flashError(
+                sprintf('Failed to clear RAG answer cache: %s', $e->getMessage()),
             );
         }
 
@@ -142,12 +164,28 @@ class SearchBackendController extends AbstractBackendController
             'Search Index Queue',
         );
 
+        $queueProgress = $this->buildQueueProgress();
+
         $this->assignMultiple($moduleTemplate, [
-            'counts' => $this->indexQueueRepository->countByStatus(),
+            'counts' => $queueProgress['counts'],
+            'queueProgress' => $queueProgress,
             'jobs' => $this->formatJobsForDisplay($this->indexQueueRepository->findRecent(50)),
+            'queueStatusUrl' => $this->uriBuilder->reset()->uriFor('queueStatus'),
         ]);
 
         return $this->renderModuleResponse($moduleTemplate, 'Queue');
+    }
+
+    public function queueStatusAction(): ResponseInterface
+    {
+        $queueProgress = $this->buildQueueProgress();
+
+        return $this->dataAsJsonResponse([
+            'counts' => $queueProgress['counts'],
+            'total' => $queueProgress['total'],
+            'percentages' => $queueProgress['percentages'],
+            'jobs' => $this->formatJobsForDisplay($this->indexQueueRepository->findRecent(50)),
+        ]);
     }
 
     public function processQueueAction(): ResponseInterface
@@ -167,6 +205,32 @@ class SearchBackendController extends AbstractBackendController
         }
 
         return $this->redirect('queue');
+    }
+
+    /**
+     * @return array{
+     *     counts: array{pending: int, processing: int, done: int, failed: int},
+     *     total: int,
+     *     percentages: array{pending: float, processing: float, done: float, failed: float}
+     * }
+     */
+    private function buildQueueProgress(): array
+    {
+        $counts = $this->indexQueueRepository->countByStatus();
+        $total = (int) array_sum($counts);
+        $percentages = [];
+
+        foreach ($counts as $status => $count) {
+            $percentages[$status] = $total > 0
+                ? round(((int) $count / $total) * 100, 1)
+                : 0.0;
+        }
+
+        return [
+            'counts' => $counts,
+            'total' => $total,
+            'percentages' => $percentages,
+        ];
     }
 
     /**

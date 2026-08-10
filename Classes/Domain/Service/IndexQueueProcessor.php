@@ -49,16 +49,26 @@ class IndexQueueProcessor implements LoggerAwareInterface, SingletonInterface
     public function processBatch(int $batchSize = self::DEFAULT_BATCH_SIZE): int
     {
         $jobs = $this->indexQueueRepository->findOpenBatch($batchSize);
-        if ($jobs === []) {
-            return 0;
+
+        if ($jobs !== []) {
+            $uids = array_map(static fn(array $job): int => (int) $job['uid'], $jobs);
+            $this->indexQueueRepository->markProcessing($uids);
+
+            foreach ($jobs as $job) {
+                $this->processJob($job);
+            }
         }
 
-        $uids = array_map(static fn(array $job): int => (int) $job['uid'], $jobs);
-        $this->indexQueueRepository->markProcessing($uids);
-
-        foreach ($jobs as $job) {
-            $this->processJob($job);
-        }
+        // Every reindex (or repeated editor save) enqueues fresh jobs for the same
+        // (table, uid) without touching previously done/failed rows for it — see
+        // IndexQueueRepository::enqueue()'s docblock: that history is kept
+        // deliberately, for the backend Queue view's "Recent Queue Activity" and
+        // failure diagnostics. Left entirely unpruned, that history grows forever,
+        // so the module's "done" counter becomes a lifetime total across every past
+        // run instead of reflecting the current queue — pruned here, once per batch,
+        // so it stays bounded no matter how this method ends up being invoked
+        // (scheduler tick or the backend module's "Process Queue Now" button).
+        $this->indexQueueRepository->cleanupOld();
 
         return count($jobs);
     }

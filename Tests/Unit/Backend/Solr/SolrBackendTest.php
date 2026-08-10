@@ -7,19 +7,19 @@ namespace Maispace\MaiSearch\Tests\Unit\Backend\Solr;
 use Maispace\MaiSearch\Backend\Solr\SolrBackend;
 use Maispace\MaiSearch\Domain\Dto\SearchResult;
 use Maispace\MaiSearch\Domain\Model\BackendCapabilities;
+use Maispace\MaiSearch\Domain\Model\ChunkDocumentInput;
 use Maispace\MaiSearch\Domain\Model\SearchDocumentInput;
 use Maispace\MaiSearch\Domain\Model\SearchRequest;
-use Maispace\MaiSearch\Domain\Service\EmbeddingProviderInterface;
 use Maispace\MaiSearch\Domain\Service\IndexManagementService;
 use Maispace\MaiSearch\Domain\Service\SearchResultFormatterInterface;
 use Maispace\MaiSearch\Domain\Solr\ConnectionFactory;
-use Maispace\MaiSearch\Domain\Solr\SchemaManager;
 use Maispace\MaiSearch\Domain\Solr\SearchQuery;
 use Maispace\MaiSearch\Domain\Solr\SearchResponse;
 use Maispace\MaiSearch\Domain\Solr\SolrClientInterface;
 use Maispace\MaiSearch\Facet\FacetRegistry;
 use Maispace\MaiSearch\Facet\TypeFacet;
-use Maispace\MaiSearch\Service\ProviderRegistry;
+use Maispace\MaiSearch\Search\HybridRankFusionService;
+use Maispace\MaiSearch\Service\QueryEmbeddingCacheService;
 use Maispace\MaiSearch\Service\ResultFormatterRegistry;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -30,7 +30,7 @@ class SolrBackendTest extends TestCase
     private ConnectionFactory $connectionFactory;
     private ResultFormatterRegistry $resultFormatterRegistry;
     private IndexManagementService $indexManagementService;
-    private ProviderRegistry $providerRegistry;
+    private QueryEmbeddingCacheService $queryEmbeddingCache;
     private FacetRegistry $facetRegistry;
     private SolrBackend $backend;
 
@@ -39,15 +39,16 @@ class SolrBackendTest extends TestCase
         $this->connectionFactory = $this->createMock(ConnectionFactory::class);
         $this->resultFormatterRegistry = $this->createMock(ResultFormatterRegistry::class);
         $this->indexManagementService = $this->createMock(IndexManagementService::class);
-        $this->providerRegistry = $this->createMock(ProviderRegistry::class);
+        $this->queryEmbeddingCache = $this->createMock(QueryEmbeddingCacheService::class);
         $this->facetRegistry = new FacetRegistry();
         $this->facetRegistry->addFacet(new TypeFacet('type', 'Type'));
         $this->backend = new SolrBackend(
             $this->connectionFactory,
             $this->resultFormatterRegistry,
             $this->indexManagementService,
-            $this->providerRegistry,
+            $this->queryEmbeddingCache,
             $this->facetRegistry,
+            new HybridRankFusionService(),
         );
     }
 
@@ -157,17 +158,43 @@ class SolrBackendTest extends TestCase
             ->expects(self::once())
             ->method('search')
             ->with(self::callback(static function (SearchQuery $query): bool {
-                $filters = $query->getFilterQueries();
+                $typeFilter = null;
+                foreach ($query->getFilterQueries() as $filter) {
+                    if ($filter['tag'] === 'typefilter') {
+                        $typeFilter = $filter;
+                    }
+                }
 
-                return count($filters) === 1
-                    && $filters[0]['query'] === 'type_s:news'
-                    && $filters[0]['tag'] === 'typefilter';
+                return $typeFilter !== null && $typeFilter['query'] === 'type_s:news';
             }))
             ->willReturn($this->createSearchResponse([]));
 
         $this->connectionFactory->method('getConnection')->willReturn($client);
 
         $this->backend->search(new SearchRequest(query: 'test', type: 'news'));
+    }
+
+    #[Test]
+    public function searchAlwaysExcludesChunkDocumentsFromTheMainQuery(): void
+    {
+        $client = $this->createMock(SolrClientInterface::class);
+        $client
+            ->expects(self::once())
+            ->method('search')
+            ->with(self::callback(static function (SearchQuery $query): bool {
+                foreach ($query->getFilterQueries() as $filter) {
+                    if ($filter['query'] === '-type_s:chunk' && $filter['tag'] === null) {
+                        return true;
+                    }
+                }
+
+                return false;
+            }))
+            ->willReturn($this->createSearchResponse([]));
+
+        $this->connectionFactory->method('getConnection')->willReturn($client);
+
+        $this->backend->search(new SearchRequest(query: 'test'));
     }
 
     #[Test]
@@ -264,53 +291,116 @@ class SolrBackendTest extends TestCase
         $this->backend->search(new SearchRequest(query: 'test', language: $language));
     }
 
+    // ── result-list rank fusion (SPEC-v3-caching-chunking.md Phase D, Decision 3) ──
+
     #[Test]
-    public function searchDoesNotAddRqParamWhenRagDisabled(): void
+    public function searchDoesNotRunChunkSearchWhenRagDisabled(): void
     {
-        $embeddingProvider = $this->createMock(EmbeddingProviderInterface::class);
-        $embeddingProvider->expects(self::never())->method('embed');
-        $this->providerRegistry->method('getActiveEmbeddingProvider')->willReturn($embeddingProvider);
+        $this->queryEmbeddingCache->expects(self::never())->method('embed');
 
         $client = $this->createMock(SolrClientInterface::class);
-        $client
-            ->expects(self::once())
-            ->method('search')
-            ->with(self::callback(static fn(SearchQuery $query): bool => $query->getParams() === []))
-            ->willReturn($this->createSearchResponse([]));
-
+        $client->expects(self::once())->method('search')->willReturn(
+            $this->createSearchResponse([$this->createSolrDocArray()], 1, ['news' => 1]),
+        );
         $this->connectionFactory->method('getConnection')->willReturn($client);
+        $this->resultFormatterRegistry->method('getFormatter')->willReturn($this->makePassthroughFormatter());
 
         $this->backend->search(new SearchRequest(query: 'test', ragEnabled: false));
     }
 
     #[Test]
-    public function searchAddsRqParamWhenRagEnabled(): void
+    public function searchDoesNotRunChunkSearchWhenTheMainQueryHasNoResults(): void
     {
-        $embeddingProvider = $this->createMock(EmbeddingProviderInterface::class);
-        $embeddingProvider->method('embed')->willReturn([0.1, 0.2, 0.3]);
-        $this->providerRegistry->method('getActiveEmbeddingProvider')->willReturn($embeddingProvider);
+        $this->queryEmbeddingCache->expects(self::never())->method('embed');
 
         $client = $this->createMock(SolrClientInterface::class);
-        $client
-            ->expects(self::once())
-            ->method('search')
-            ->with(self::callback(static function (SearchQuery $query): bool {
-                $params = $query->getParams();
-
-                // rq must be a Solr RankQuery — {!knn} alone isn't one, so the
-                // KNN clause lives in rqq and rq wraps it via {!rerank}.
-                return isset($params['rq'])
-                    && str_contains((string) $params['rq'], '{!rerank')
-                    && str_contains((string) $params['rq'], '$rqq')
-                    && isset($params['rqq'])
-                    && str_contains((string) $params['rqq'], '{!knn')
-                    && str_contains((string) $params['rqq'], SchemaManager::VECTOR_FIELD_NAME);
-            }))
-            ->willReturn($this->createSearchResponse([]));
-
+        $client->expects(self::once())->method('search')->willReturn($this->createSearchResponse([]));
         $this->connectionFactory->method('getConnection')->willReturn($client);
 
         $this->backend->search(new SearchRequest(query: 'test', ragEnabled: true));
+    }
+
+    #[Test]
+    public function searchReordersResultsByFusedRankWhenRagEnabled(): void
+    {
+        $this->resultFormatterRegistry->method('getFormatter')->with('news')->willReturn($this->makePassthroughFormatter());
+        $this->queryEmbeddingCache->method('embed')->willReturn([0.1, 0.2]);
+
+        $client = $this->createMock(SolrClientInterface::class);
+        $client->method('search')->willReturnCallback(function (SearchQuery $query): SearchResponse {
+            if (str_starts_with($query->getQuery(), '{!knn')) {
+                // Semantic signal: /b ranks first.
+                return new SearchResponse([
+                    [
+                        'parent_type_s' => 'news',
+                        'parent_title_s' => 'B',
+                        'parent_url_s' => '/b',
+                        'content_t' => 'chunk about b',
+                        'score' => 0.95,
+                    ],
+                ], 1, []);
+            }
+
+            // Text signal: /a ranks first.
+            return new SearchResponse([
+                $this->createSolrDocArray(title: 'A', url: '/a'),
+                $this->createSolrDocArray(title: 'B', url: '/b'),
+            ], 2, []);
+        });
+
+        $this->connectionFactory->method('getConnection')->willReturn($client);
+
+        $page = $this->backend->search(new SearchRequest(query: 'test', ragEnabled: true));
+
+        self::assertSame('/b', $page->results[0]->url);
+        self::assertCount(2, $page->results);
+        // Total/pagination stay governed by the text signal alone — fusion only reorders.
+        self::assertSame(2, $page->total);
+    }
+
+    #[Test]
+    public function searchKeepsTextOrderWhenChunkSearchReturnsNoSemanticHits(): void
+    {
+        $this->resultFormatterRegistry->method('getFormatter')->with('news')->willReturn($this->makePassthroughFormatter());
+        $this->queryEmbeddingCache->method('embed')->willReturn([]);
+
+        $client = $this->createMock(SolrClientInterface::class);
+        $client->method('search')->willReturnCallback(function (SearchQuery $query): SearchResponse {
+            if (str_starts_with($query->getQuery(), '{!knn')) {
+                return $this->createSearchResponse([]);
+            }
+
+            return new SearchResponse([
+                $this->createSolrDocArray(title: 'A', url: '/a'),
+                $this->createSolrDocArray(title: 'B', url: '/b'),
+            ], 2, []);
+        });
+
+        $this->connectionFactory->method('getConnection')->willReturn($client);
+
+        $page = $this->backend->search(new SearchRequest(query: 'test', ragEnabled: true));
+
+        self::assertSame('/a', $page->results[0]->url);
+        self::assertSame('/b', $page->results[1]->url);
+    }
+
+    private function makePassthroughFormatter(): SearchResultFormatterInterface
+    {
+        $formatter = $this->createMock(SearchResultFormatterInterface::class);
+        $formatter->method('getType')->willReturn('news');
+        $formatter->method('formatResult')->willReturnCallback(
+            static fn(array $doc): SearchResult => new SearchResult(
+                type: 'news',
+                title: (string) ($doc['title_s'] ?? ''),
+                snippet: (string) ($doc['content_t'] ?? ''),
+                url: (string) ($doc['url_s'] ?? ''),
+                icon: '',
+                date: null,
+                score: (float) ($doc['score'] ?? 0.0),
+            ),
+        );
+
+        return $formatter;
     }
 
     #[Test]
@@ -319,7 +409,7 @@ class SolrBackendTest extends TestCase
         $this->indexManagementService
             ->expects(self::once())
             ->method('addDocumentForLanguageCode')
-            ->with(self::isInstanceOf(\Maispace\MaiSearch\Domain\Solr\Document::class), 'de');
+            ->with(self::isInstanceOf(\Maispace\MaiSearch\Domain\Solr\Document::class), 'de', true);
 
         $this->backend->indexDocument(new SearchDocumentInput(
             type: 'news',
@@ -342,5 +432,164 @@ class SolrBackendTest extends TestCase
             ->with('news', 42);
 
         $this->backend->removeDocument('news', 42);
+    }
+
+    // ── ChunkSearchBackendInterface (SPEC-v3-caching-chunking.md Phase D) ───────
+
+    #[Test]
+    public function indexChunkBuildsAChunkDocumentAndDelegatesToIndexManagementService(): void
+    {
+        $this->indexManagementService
+            ->expects(self::once())
+            ->method('addDocumentForLanguageCode')
+            ->with(
+                self::callback(static function (\Maispace\MaiSearch\Domain\Solr\Document $document): bool {
+                    $fields = $document->getFields();
+
+                    return $fields['id'] === 'news-42-chunk-0'
+                        && $fields['type_s'] === 'chunk'
+                        && $fields['parent_type_s'] === 'news'
+                        && $fields['parent_uid_i'] === 42
+                        && $fields['parent_title_s'] === 'Title'
+                        && $fields['parent_url_s'] === '/news/42'
+                        && $fields['chunk_index_i'] === 0
+                        && $fields['content_t'] === 'Chunk text';
+                }),
+                'de',
+            );
+
+        $this->backend->indexChunk(new ChunkDocumentInput(
+            parentType: 'news',
+            parentUid: 42,
+            parentTitle: 'Title',
+            parentUrl: '/news/42',
+            chunkIndex: 0,
+            content: 'Chunk text',
+            languageCode: 'de',
+        ));
+    }
+
+    #[Test]
+    public function removeChunkDeletesByExactChunkId(): void
+    {
+        $this->indexManagementService
+            ->expects(self::once())
+            ->method('deleteById')
+            ->with('news-42-chunk-2');
+
+        $this->backend->removeChunk('news', 42, 2);
+    }
+
+    #[Test]
+    public function removeChunksDeletesEveryChunkOfTheParentDocument(): void
+    {
+        $this->indexManagementService
+            ->expects(self::once())
+            ->method('deleteByQuery')
+            ->with('type_s:chunk AND parent_type_s:news AND parent_uid_i:42');
+
+        $this->backend->removeChunks('news', 42);
+    }
+
+    #[Test]
+    public function searchChunksReturnsEmptyArrayForBlankQuery(): void
+    {
+        $this->queryEmbeddingCache->expects(self::never())->method('embed');
+
+        self::assertSame([], $this->backend->searchChunks('   ', null, null, 5));
+    }
+
+    #[Test]
+    public function searchChunksReturnsEmptyArrayWhenEmbeddingProviderFails(): void
+    {
+        $this->queryEmbeddingCache->method('embed')->willThrowException(new \RuntimeException('provider down'));
+
+        self::assertSame([], $this->backend->searchChunks('test', null, null, 5));
+    }
+
+    #[Test]
+    public function searchChunksReturnsEmptyArrayWhenEmbeddingIsEmpty(): void
+    {
+        $this->queryEmbeddingCache->method('embed')->willReturn([]);
+
+        self::assertSame([], $this->backend->searchChunks('test', null, null, 5));
+    }
+
+    #[Test]
+    public function searchChunksBuildsSearchResultsFromParentFields(): void
+    {
+        $this->queryEmbeddingCache->method('embed')->willReturn([0.1, 0.2]);
+
+        $client = $this->createMock(SolrClientInterface::class);
+        $client
+            ->expects(self::once())
+            ->method('search')
+            ->with(self::callback(static function (SearchQuery $query): bool {
+                $filters = $query->getFilterQueries();
+
+                return str_starts_with($query->getQuery(), '{!knn')
+                    && $query->getRows() === 5
+                    && $filters !== []
+                    && $filters[0]['query'] === 'type_s:chunk';
+            }))
+            ->willReturn(new SearchResponse([
+                [
+                    'parent_type_s' => 'news',
+                    'parent_title_s' => 'News Title',
+                    'parent_url_s' => '/news/1',
+                    'content_t' => 'Relevant chunk text',
+                    'score' => 0.8,
+                ],
+            ], 1, []));
+
+        $this->connectionFactory->method('getConnection')->willReturn($client);
+
+        $results = $this->backend->searchChunks('test', null, null, 5);
+
+        self::assertCount(1, $results);
+        self::assertSame('news', $results[0]->type);
+        self::assertSame('News Title', $results[0]->title);
+        self::assertSame('/news/1', $results[0]->url);
+        self::assertSame('Relevant chunk text', $results[0]->snippet);
+        self::assertSame(0.8, $results[0]->score);
+    }
+
+    #[Test]
+    public function searchChunksAppliesTypeFilterAgainstParentType(): void
+    {
+        $this->queryEmbeddingCache->method('embed')->willReturn([0.1]);
+
+        $client = $this->createMock(SolrClientInterface::class);
+        $client
+            ->expects(self::once())
+            ->method('search')
+            ->with(self::callback(static function (SearchQuery $query): bool {
+                foreach ($query->getFilterQueries() as $filter) {
+                    if ($filter['query'] === 'parent_type_s:news') {
+                        return true;
+                    }
+                }
+
+                return false;
+            }))
+            ->willReturn($this->createSearchResponse([]));
+
+        $this->connectionFactory->method('getConnection')->willReturn($client);
+
+        $this->backend->searchChunks('test', null, 'news', 5);
+    }
+
+    #[Test]
+    public function searchChunksSkipsDocumentWithoutParentType(): void
+    {
+        $this->queryEmbeddingCache->method('embed')->willReturn([0.1]);
+
+        $client = $this->createMock(SolrClientInterface::class);
+        $client->method('search')->willReturn(new SearchResponse([
+            ['content_t' => 'orphaned chunk without parent fields'],
+        ], 1, []));
+        $this->connectionFactory->method('getConnection')->willReturn($client);
+
+        self::assertSame([], $this->backend->searchChunks('test', null, null, 5));
     }
 }
