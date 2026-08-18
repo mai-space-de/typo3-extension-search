@@ -3,6 +3,7 @@
 * Unified search index — indexes content across multiple record types and content elements
 * Indexer interface — pluggable indexer interface so any extension can contribute searchable records
 * Backend index management — re-index, clear, and inspect the search index in the backend
+* RAG prompts — system prompt and user template are Site Settings (`search.rag.*`); the Search backend module shows the resolved values read-only
 * Live index queue — backend queue view auto-refreshes counts and recent jobs while the scheduler drains the queue
 * Colorful queue progress bar — stacked pending / processing / done / failed bar on index and queue backend views
 
@@ -49,14 +50,19 @@ quality, on both Solr and Meilisearch.
 
 ### 4. Answer Synthesis
 Top-ranked context chunks are assembled into a prompt and sent to the active
-chat provider's Chat Completions API. `SearchSynthesisService` returns a
-concise answer summary with source references. The Fluid template renders the
-answer card above the hit list; the card is hidden when RAG is disabled.
-Answers can be streamed token-by-token (SSE) or delivered synchronously.
+chat provider's Chat Completions API. System prompt and user template
+(`{context}`, `{query}`) are Site Settings (`search.rag.systemPrompt` /
+`search.rag.userTemplate`, Site Set `maispace/mai-search`); empty or invalid
+values fall back to the code defaults on `RagPrompt`. `SearchSynthesisService`
+returns a concise answer summary with source references. The Fluid template
+renders the answer card above the hit list; the card is hidden when RAG is
+disabled. Answers can be streamed token-by-token (SSE) or delivered
+synchronously. The Search backend module shows the currently resolved prompts
+read-only; edit them in Sites → Site Configuration → Settings.
 
 ## Caching
 
-* RAG answer cache — synthesised answers are cached (`AnswerCacheService`), keyed by query + context + conversation history, with a configurable TTL (`ragAnswerCacheTtl`). Served identically for the synchronous and the streaming answer path — a cache hit on the streaming endpoint is delivered as a fast SSE burst instead of a live token-by-token generation
+* RAG answer cache — synthesised answers are cached (`AnswerCacheService`), keyed by query + context + conversation history + prompt fingerprint, with a configurable TTL (`ragAnswerCacheTtl`). Served identically for the synchronous and the streaming answer path — a cache hit on the streaming endpoint is delivered as a fast SSE burst instead of a live token-by-token generation
 * Query embedding cache — query-time embedding vectors are cached (`QueryEmbeddingCacheService`, configurable TTL via `queryEmbeddingCacheTtl`) so the same question is never sent to the embedding provider twice, whether asked by different visitors or embedded twice within one request (hybrid rerank + RAG context resolution)
 * Content-hash-gated invalidation — a record save that doesn't actually change the extracted content (metadata-only edits) neither invalidates the answer cache nor re-embeds anything; content-hash tracking exists at both document (`ContentHashService`) and chunk (`OrphanChunkCleanupService`) granularity
 * Reindex/clear invalidation — a full reindex or "clear index" in the backend module invalidates the whole answer cache; admins can also clear just the answer cache without rebuilding the search index

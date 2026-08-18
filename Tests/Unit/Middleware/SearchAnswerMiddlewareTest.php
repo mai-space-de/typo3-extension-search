@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Maispace\MaiSearch\Tests\Unit\Middleware;
 
 use Maispace\MaiSearch\Configuration\RagConfiguration;
+use Maispace\MaiSearch\Configuration\RagPromptFactory;
 use Maispace\MaiSearch\Domain\Dto\SearchResult;
 use Maispace\MaiSearch\Domain\Dto\SearchResultPage;
 use Maispace\MaiSearch\Domain\Service\ChatProviderInterface;
@@ -55,6 +56,7 @@ final class SearchAnswerMiddlewareTest extends TestCase
             new RagConfiguration($extensionConfiguration),
             $this->providerAvailability,
             new RagApiSupport(),
+            new RagPromptFactory(),
         );
     }
 
@@ -121,7 +123,9 @@ final class SearchAnswerMiddlewareTest extends TestCase
         $request->method('getMethod')->willReturn('POST');
         $request->method('getBody')->willReturn($stream);
         $request->method('getHeaderLine')->willReturn('application/json');
-        $request->method('getAttribute')->with('language')->willReturn(null);
+        $request->method('getAttribute')->willReturnCallback(
+            static fn(string $name): mixed => null,
+        );
 
         return $request;
     }

@@ -6,8 +6,10 @@ namespace Maispace\MaiSearch\Middleware;
 
 use Maispace\MaiBase\Middleware\Api\AbstractApiMiddleware;
 use Maispace\MaiSearch\Configuration\RagConfiguration;
+use Maispace\MaiSearch\Configuration\RagPromptFactory;
 use Maispace\MaiSearch\Domain\Dto\SearchResult;
 use Maispace\MaiSearch\Domain\Model\ConversationHistory;
+use Maispace\MaiSearch\Domain\Model\RagPrompt;
 use Maispace\MaiSearch\Domain\Service\RagContextResolver;
 use Maispace\MaiSearch\Domain\Service\SearchService;
 use Maispace\MaiSearch\Domain\Service\SearchSynthesisService;
@@ -44,6 +46,7 @@ class SearchStreamMiddleware extends AbstractApiMiddleware
         private readonly RagConfiguration $ragConfiguration,
         private readonly ProviderAvailabilityService $providerAvailability,
         private readonly RagApiSupport $ragApiSupport,
+        private readonly RagPromptFactory $ragPromptFactory,
     ) {
         parent::__construct($responseFactory, $streamFactory);
     }
@@ -90,6 +93,7 @@ class SearchStreamMiddleware extends AbstractApiMiddleware
             $type,
             $history,
             $clientContext,
+            $this->ragPromptFactory->fromSite($this->ragApiSupport->resolveSite($request)),
         );
     }
 
@@ -103,6 +107,7 @@ class SearchStreamMiddleware extends AbstractApiMiddleware
         ?string $type,
         ConversationHistory $history,
         array $clientContext,
+        RagPrompt $prompt,
     ): ResponseInterface {
         $sources = [];
         $answer = '';
@@ -114,6 +119,7 @@ class SearchStreamMiddleware extends AbstractApiMiddleware
             $type,
             $history,
             $clientContext,
+            $prompt,
             &$sources,
             &$answer,
         ): \Generator {
@@ -130,7 +136,7 @@ class SearchStreamMiddleware extends AbstractApiMiddleware
             // chat-completion call entirely and is emitted as a fast burst of
             // `token` events instead of one big blob — the frontend needs no
             // special-casing, it just sees the same event shape delivered faster.
-            $cachedAnswer = $this->synthesisService->getCachedAnswer($query, $context, $history);
+            $cachedAnswer = $this->synthesisService->getCachedAnswer($query, $context, $history, $prompt);
             if ($cachedAnswer !== null) {
                 $answer = $cachedAnswer;
 
@@ -143,7 +149,7 @@ class SearchStreamMiddleware extends AbstractApiMiddleware
                 return;
             }
 
-            $chatRequest = $this->synthesisService->buildChatRequest($query, $context, $history);
+            $chatRequest = $this->synthesisService->buildChatRequest($query, $context, $history, $prompt);
 
             yield ['event' => 'status', 'data' => ['phase' => 'generating']];
 
@@ -153,7 +159,7 @@ class SearchStreamMiddleware extends AbstractApiMiddleware
                 yield $token;
             }
 
-            $this->synthesisService->cacheAnswer($query, $context, $history, $answer);
+            $this->synthesisService->cacheAnswer($query, $context, $history, $answer, $prompt);
         })();
 
         $finalize = function () use (&$answer, &$sources, $history, $query): array {

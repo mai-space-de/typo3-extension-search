@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<xliff version="1.0">
+    <file source-language="en" target-language="de" datatype="plaintext" original="messages" date="2026-08-18T11:00:00Z" product-name="mai-search">
+        <header/>
+        <body>
+            <trans-unit id="label">
+                <source>Mai Search</source>
+                <target>Mai Search</target>
+            </trans-unit>
+            <trans-unit id="categories.mai-search">
+                <source>Search</source>
+                <target>Suche</target>
+            </trans-unit>
+            <trans-unit id="categories.mai-search.rag">
+                <source>RAG prompts</source>
+                <target>RAG-Prompts</target>
+            </trans-unit>
+            <trans-unit id="settings.search.rag.systemPrompt">
+                <source>System prompt</source>
+                <target>System-Prompt</target>
+            </trans-unit>
+            <trans-unit id="settings.description.search.rag.systemPrompt">
+                <source>Sent as the first chat message for RAG answer synthesis. Leave empty to use the code default. Instruct the model to answer in the language of the question.</source>
+                <target>Wird als erste Chat-Nachricht für die RAG-Antwort verwendet. Leer lassen für den Code-Default. Das Modell sollte in der Sprache der Frage antworten.</target>
+            </trans-unit>
+            <trans-unit id="settings.search.rag.userTemplate">
+                <source>User prompt template</source>
+                <target>User-Prompt-Vorlage</target>
+            </trans-unit>
+            <trans-unit id="settings.description.search.rag.userTemplate">
+                <source>Must contain {context} (numbered source snippets) and {query} (the visitor question). Invalid templates fall back to the code default.</source>
+                <target>Muss {context} (nummerierte Quellen-Snippets) und {query} (die Suchfrage) enthalten. Ungültige Vorlagen fallen auf den Code-Default zurück.</target>
+            </trans-unit>
+        </body>
+    </file>
+</xliff>

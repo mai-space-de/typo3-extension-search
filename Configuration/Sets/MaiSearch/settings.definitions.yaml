@@ -1,0 +1,20 @@
+categories:
+  mai-search: ~
+  mai-search.rag:
+    parent: mai-search
+
+settings:
+  search.rag.systemPrompt:
+    default: 'You are a helpful assistant that answers questions based on the provided context. Keep your answer concise and factual. Answer in the same language as the question. If the context does not contain enough information, say so briefly.'
+    type: text
+    category: mai-search.rag
+  search.rag.userTemplate:
+    default: |-
+      Based on the following context, answer the question concisely.
+
+      Context:
+      {context}
+
+      Question: {query}
+    type: text
+    category: mai-search.rag

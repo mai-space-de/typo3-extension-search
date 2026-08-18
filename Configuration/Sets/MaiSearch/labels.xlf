@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<xliff version="1.0">
+    <file source-language="en" datatype="plaintext" original="messages" date="2026-08-18T11:00:00Z" product-name="mai-search">
+        <header/>
+        <body>
+            <trans-unit id="label">
+                <source>Mai Search</source>
+            </trans-unit>
+            <trans-unit id="categories.mai-search">
+                <source>Search</source>
+            </trans-unit>
+            <trans-unit id="categories.mai-search.rag">
+                <source>RAG prompts</source>
+            </trans-unit>
+            <trans-unit id="settings.search.rag.systemPrompt">
+                <source>System prompt</source>
+            </trans-unit>
+            <trans-unit id="settings.description.search.rag.systemPrompt">
+                <source>Sent as the first chat message for RAG answer synthesis. Leave empty to use the code default. Instruct the model to answer in the language of the question.</source>
+            </trans-unit>
+            <trans-unit id="settings.search.rag.userTemplate">
+                <source>User prompt template</source>
+            </trans-unit>
+            <trans-unit id="settings.description.search.rag.userTemplate">
+                <source>Must contain {context} (numbered source snippets) and {query} (the visitor question). Invalid templates fall back to the code default.</source>
+            </trans-unit>
+        </body>
+    </file>
+</xliff>

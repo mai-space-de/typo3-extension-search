@@ -11,6 +11,7 @@ use Maispace\MaiSearch\Domain\Dto\SynthesisResult;
 use Maispace\MaiSearch\Domain\Model\ChatMessage;
 use Maispace\MaiSearch\Domain\Model\ChatRequest;
 use Maispace\MaiSearch\Domain\Model\ConversationHistory;
+use Maispace\MaiSearch\Domain\Model\RagPrompt;
 use Maispace\MaiSearch\Service\AnswerCacheService;
 use Maispace\MaiSearch\Service\ProviderRegistry;
 
@@ -35,10 +36,6 @@ use Maispace\MaiSearch\Service\ProviderRegistry;
  */
 final class SearchSynthesisService
 {
-    private const string SYSTEM_PROMPT = 'You are a helpful assistant that answers questions based on the '
-        . 'provided context. Keep your answer concise and factual. If the context does not contain enough '
-        . 'information, say so briefly.';
-
     public function __construct(
         private readonly ProviderRegistry $providerRegistry,
         private readonly AnswerCacheService $answerCacheService,
@@ -52,12 +49,14 @@ final class SearchSynthesisService
      * @param ConversationHistory|null $history Prior turns, inserted between the system
      *                                          message and the current question so the
      *                                          model can resolve follow-ups ("and in German?")
+     * @param RagPrompt|null           $prompt  Site-resolved prompts; defaults when omitted
      */
     public function synthesise(
         string $query,
         array $context,
         bool $ragEnabled = true,
         ?ConversationHistory $history = null,
+        ?RagPrompt $prompt = null,
     ): SynthesisResult {
         if (!$ragEnabled) {
             return SynthesisResult::empty();
@@ -67,17 +66,18 @@ final class SearchSynthesisService
             return SynthesisResult::empty();
         }
 
+        $prompt ??= RagPrompt::defaults();
         $sources = $this->buildSources($context);
 
-        $cachedAnswer = $this->getCachedAnswer($query, $context, $history);
+        $cachedAnswer = $this->getCachedAnswer($query, $context, $history, $prompt);
         if ($cachedAnswer !== null) {
             return new SynthesisResult($cachedAnswer, $sources);
         }
 
-        $request = $this->buildChatRequest($query, $context, $history);
+        $request = $this->buildChatRequest($query, $context, $history, $prompt);
         $answer = $this->providerRegistry->getActiveChatProvider()->complete($request)->content;
 
-        $this->cacheAnswer($query, $context, $history, $answer);
+        $this->cacheAnswer($query, $context, $history, $answer, $prompt);
 
         return new SynthesisResult($answer, $sources);
     }
@@ -87,13 +87,24 @@ final class SearchSynthesisService
      * SearchStreamMiddleware (SPEC-v3-caching-chunking.md Phase C) so a repeated
      * question is served as a fast SSE burst of the cached answer instead of a live,
      * token-by-token chat-completion call — same cache-key semantics as synthesise()
-     * itself, since both build the key from query + context URLs + history.
+     * itself, since both build the key from query + context URLs + history + prompt.
      *
      * @param SearchResult[] $context
      */
-    public function getCachedAnswer(string $query, array $context, ?ConversationHistory $history = null): ?string
-    {
-        return $this->answerCacheService->get($query, $this->contextUrls($context), $history?->toArray() ?? []);
+    public function getCachedAnswer(
+        string $query,
+        array $context,
+        ?ConversationHistory $history = null,
+        ?RagPrompt $prompt = null,
+    ): ?string {
+        $prompt ??= RagPrompt::defaults();
+
+        return $this->answerCacheService->get(
+            $query,
+            $this->contextUrls($context),
+            $history?->toArray() ?? [],
+            $prompt->fingerprint(),
+        );
     }
 
     /**
@@ -105,14 +116,22 @@ final class SearchSynthesisService
      *
      * @param SearchResult[] $context
      */
-    public function cacheAnswer(string $query, array $context, ?ConversationHistory $history, string $answer): void
-    {
+    public function cacheAnswer(
+        string $query,
+        array $context,
+        ?ConversationHistory $history,
+        string $answer,
+        ?RagPrompt $prompt = null,
+    ): void {
+        $prompt ??= RagPrompt::defaults();
+
         $this->answerCacheService->set(
             $query,
             $this->contextUrls($context),
             $history?->toArray() ?? [],
             $answer,
             $this->ragConfiguration->getAnswerCacheTtl(),
+            $prompt->fingerprint(),
         );
     }
 
@@ -125,15 +144,20 @@ final class SearchSynthesisService
      *
      * @param SearchResult[] $context
      */
-    public function buildChatRequest(string $query, array $context, ?ConversationHistory $history = null): ChatRequest
-    {
-        $messages = [new ChatMessage('system', self::SYSTEM_PROMPT)];
+    public function buildChatRequest(
+        string $query,
+        array $context,
+        ?ConversationHistory $history = null,
+        ?RagPrompt $prompt = null,
+    ): ChatRequest {
+        $prompt ??= RagPrompt::defaults();
+        $messages = [new ChatMessage('system', $prompt->systemPrompt)];
 
         if ($history !== null) {
             array_push($messages, ...$history->getMessages());
         }
 
-        $messages[] = new ChatMessage('user', $this->buildUserPrompt($query, $context));
+        $messages[] = new ChatMessage('user', $prompt->renderUserPrompt($query, $this->buildContextBlock($context)));
 
         return new ChatRequest($messages);
     }
@@ -169,7 +193,7 @@ final class SearchSynthesisService
     /**
      * @param SearchResult[] $context
      */
-    private function buildUserPrompt(string $query, array $context): string
+    private function buildContextBlock(array $context): string
     {
         $chunks = [];
         foreach ($context as $index => $result) {
@@ -179,10 +203,6 @@ final class SearchSynthesisService
             $chunks[] = sprintf('[%d] %s: %s', $number, $source, $text);
         }
 
-        return sprintf(
-            "Based on the following context, answer the question concisely.\n\nContext:\n%s\n\nQuestion: %s",
-            implode("\n", $chunks),
-            $query,
-        );
+        return implode("\n", $chunks);
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Maispace\MaiSearch\Tests\Unit\Controller;
 
 use Maispace\MaiSearch\Configuration\RagConfiguration;
+use Maispace\MaiSearch\Configuration\RagPromptFactory;
 use Maispace\MaiSearch\Configuration\SuggestConfiguration;
 use Maispace\MaiSearch\Controller\SearchController;
 use Maispace\MaiSearch\Domain\Service\RagContextResolver;
@@ -75,6 +76,7 @@ final class SearchControllerTest extends TestCase
             $this->suggestConfiguration,
             $this->providerAvailability,
             $this->ragApiSupport,
+            new RagPromptFactory(),
         );
     }
 
@@ -112,6 +114,24 @@ final class SearchControllerTest extends TestCase
 
         self::assertInstanceOf(\ReflectionNamedType::class, $serviceParam->getType());
         self::assertSame(SearchSynthesisService::class, $serviceParam->getType()->getName());
+    }
+
+    #[Test]
+    public function controllerHasRagPromptFactoryDependency(): void
+    {
+        $params = (new \ReflectionMethod(SearchController::class, '__construct'))
+            ->getParameters();
+
+        $names = array_map(static fn(\ReflectionParameter $p) => $p->getName(), $params);
+        self::assertContains('ragPromptFactory', $names);
+
+        $serviceParam = current(array_filter(
+            $params,
+            static fn(\ReflectionParameter $p) => $p->getName() === 'ragPromptFactory',
+        ));
+
+        self::assertInstanceOf(\ReflectionNamedType::class, $serviceParam->getType());
+        self::assertSame(RagPromptFactory::class, $serviceParam->getType()->getName());
     }
 
     #[Test]
@@ -380,6 +400,7 @@ final class SearchControllerTest extends TestCase
             $this->suggestConfiguration,
             $this->providerAvailability,
             $this->ragApiSupport,
+            new RagPromptFactory(),
         );
 
         $method = new \ReflectionMethod(SearchController::class, 'appendTurn');

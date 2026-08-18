@@ -106,6 +106,40 @@
             </f:link.action>
         </div>
 
+        <h2><f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.prompts.title" /></h2>
+
+        <p>
+            <f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.prompts.hint" />
+        </p>
+
+        <f:if condition="{ragPromptSiteResolved}">
+            <f:else>
+                <div class="alert alert-warning">
+                    <f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.prompts.noSite" />
+                </div>
+            </f:else>
+        </f:if>
+
+        <f:if condition="{ragPromptIsDefault}">
+            <f:then>
+                <p><span class="label label-default"><f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.prompts.usingDefault" /></span></p>
+            </f:then>
+            <f:else>
+                <p><span class="label label-success"><f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.prompts.usingOverride" /></span></p>
+            </f:else>
+        </f:if>
+
+        <div class="row" style="margin-bottom: 2em;">
+            <div class="col-md-6">
+                <h3><f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.prompts.systemPrompt" /></h3>
+                <pre style="white-space: pre-wrap; max-height: 16em; overflow: auto;">{ragPrompt.systemPrompt}</pre>
+            </div>
+            <div class="col-md-6">
+                <h3><f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.prompts.userTemplate" /></h3>
+                <pre style="white-space: pre-wrap; max-height: 16em; overflow: auto;">{ragPrompt.userTemplate}</pre>
+            </div>
+        </div>
+
         <h2><f:translate key="LLL:EXT:mai_search/Resources/Private/Language/Default/locallang_backend.xlf:index.inspect.title" /></h2>
 
         <f:if condition="{indexStats.cores}">

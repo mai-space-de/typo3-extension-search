@@ -6,8 +6,10 @@ namespace Maispace\MaiSearch\Controller;
 
 use Maispace\MaiBase\Controller\Traits\PageRendererTrait;
 use Maispace\MaiSearch\Configuration\RagConfiguration;
+use Maispace\MaiSearch\Configuration\RagPromptFactory;
 use Maispace\MaiSearch\Configuration\SuggestConfiguration;
 use Maispace\MaiSearch\Domain\Model\ConversationHistory;
+use Maispace\MaiSearch\Domain\Model\RagPrompt;
 use Maispace\MaiSearch\Domain\Service\RagContextResolver;
 use Maispace\MaiSearch\Domain\Service\SearchService;
 use Maispace\MaiSearch\Domain\Service\SearchSynthesisService;
@@ -32,6 +34,7 @@ class SearchController extends ActionController
         private readonly SuggestConfiguration $suggestConfiguration,
         private readonly ProviderAvailabilityService $providerAvailability,
         private readonly RagApiSupport $ragApiSupport,
+        private readonly RagPromptFactory $ragPromptFactory,
     ) {}
 
     public function injectPageRenderer(PageRenderer $pageRenderer): void
@@ -129,7 +132,13 @@ class SearchController extends ActionController
             );
 
             if (!$streamingActive) {
-                $synthesisResult = $this->synthesisService->synthesise($query, $context, true, $conversationHistory);
+                $synthesisResult = $this->synthesisService->synthesise(
+                    $query,
+                    $context,
+                    true,
+                    $conversationHistory,
+                    $this->resolvePrompt(),
+                );
                 $historyPayload = $this->encodeHistory($this->appendTurn($conversationHistory, $query, $synthesisResult->answer));
             }
         }
@@ -163,6 +172,11 @@ class SearchController extends ActionController
         $language = $this->request->getAttribute('language');
 
         return $language instanceof SiteLanguage ? $language : null;
+    }
+
+    private function resolvePrompt(): RagPrompt
+    {
+        return $this->ragPromptFactory->fromSite($this->ragApiSupport->resolveSite($this->request));
     }
 
     private function resolveRagEnabled(): bool

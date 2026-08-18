@@ -6,6 +6,7 @@ namespace Maispace\MaiSearch\Controller\Backend;
 
 use Maispace\MaiBase\Controller\Backend\AbstractBackendController;
 use Maispace\MaiBase\Controller\Traits\ResponseHelpersTrait;
+use Maispace\MaiSearch\Configuration\RagPromptFactory;
 use Maispace\MaiSearch\Domain\Service\IndexManagementService;
 use Maispace\MaiSearch\Domain\Service\IndexQueueProcessor;
 use Maispace\MaiSearch\Domain\Service\ProvisioningService;
@@ -16,6 +17,8 @@ use Psr\Http\Message\ResponseInterface;
 use TYPO3\CMS\Backend\Attribute\AsController;
 use TYPO3\CMS\Backend\Template\ModuleTemplateFactory;
 use TYPO3\CMS\Core\Imaging\IconFactory;
+use TYPO3\CMS\Core\Site\Entity\Site;
+use TYPO3\CMS\Core\Site\SiteFinder;
 
 #[AsController]
 class SearchBackendController extends AbstractBackendController
@@ -31,6 +34,8 @@ class SearchBackendController extends AbstractBackendController
         private readonly IndexQueueRepository $indexQueueRepository,
         private readonly IndexQueueProcessor $indexQueueProcessor,
         private readonly AnswerCacheService $answerCacheService,
+        private readonly RagPromptFactory $ragPromptFactory,
+        private readonly SiteFinder $siteFinder,
     ) {
         parent::__construct($moduleTemplateFactory, $iconFactory);
     }
@@ -54,6 +59,8 @@ class SearchBackendController extends AbstractBackendController
 
         $indexStats = $this->indexManagementService->getIndexStats();
         $queueProgress = $this->buildQueueProgress();
+        $site = $this->resolveSite();
+        $ragPrompt = $this->ragPromptFactory->fromSite($site);
 
         $this->assignMultiple($moduleTemplate, [
             'coreMapping' => $coreMapping,
@@ -63,6 +70,9 @@ class SearchBackendController extends AbstractBackendController
             'indexStats' => $indexStats,
             'queueProgress' => $queueProgress,
             'queueStatusUrl' => $this->uriBuilder->reset()->uriFor('queueStatus'),
+            'ragPrompt' => $ragPrompt,
+            'ragPromptIsDefault' => $ragPrompt->isDefault(),
+            'ragPromptSiteResolved' => $site !== null,
         ]);
 
         return $this->renderModuleResponse($moduleTemplate, 'Index');
@@ -252,5 +262,19 @@ class SearchBackendController extends AbstractBackendController
             ],
             $jobs,
         );
+    }
+
+    private function resolveSite(): ?Site
+    {
+        $site = $this->request->getAttribute('site');
+        if ($site instanceof Site) {
+            return $site;
+        }
+
+        foreach ($this->siteFinder->getAllSites() as $candidate) {
+            return $candidate;
+        }
+
+        return null;
     }
 }

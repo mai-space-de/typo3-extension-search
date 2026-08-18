@@ -128,6 +128,34 @@
                 <source>Index Queue</source>
                 <target>Index-Warteschlange</target>
             </trans-unit>
+            <trans-unit id="index.prompts.title">
+                <source>RAG Prompts</source>
+                <target>RAG-Prompts</target>
+            </trans-unit>
+            <trans-unit id="index.prompts.hint">
+                <source>Edit these texts in Sites → Site Configuration → Settings (Search). Changing a prompt invalidates cached answers because the prompt is part of the cache key.</source>
+                <target>Diese Texte bearbeiten Sie unter Sites → Site Configuration → Settings (Suche). Eine Prompt-Änderung invalidiert gecachte Antworten, weil der Prompt Teil des Cache-Keys ist.</target>
+            </trans-unit>
+            <trans-unit id="index.prompts.noSite">
+                <source>No site could be resolved. Showing code defaults. Select a page in the page tree or activate the mai-search site set.</source>
+                <target>Keine Site gefunden. Es gelten die Code-Defaults. Seite im Seitenbaum wählen oder das mai-search Site-Set aktivieren.</target>
+            </trans-unit>
+            <trans-unit id="index.prompts.usingDefault">
+                <source>Using code defaults</source>
+                <target>Code-Defaults aktiv</target>
+            </trans-unit>
+            <trans-unit id="index.prompts.usingOverride">
+                <source>Using site settings override</source>
+                <target>Site-Settings-Override aktiv</target>
+            </trans-unit>
+            <trans-unit id="index.prompts.systemPrompt">
+                <source>System prompt</source>
+                <target>System-Prompt</target>
+            </trans-unit>
+            <trans-unit id="index.prompts.userTemplate">
+                <source>User template ({context}, {query})</source>
+                <target>User-Vorlage ({context}, {query})</target>
+            </trans-unit>
             <trans-unit id="queue.title">
                 <source>Search Index Queue</source>
                 <target>Such-Index-Warteschlange</target>

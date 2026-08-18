@@ -96,6 +96,27 @@
             <trans-unit id="index.queue.button">
                 <source>Index Queue</source>
             </trans-unit>
+            <trans-unit id="index.prompts.title">
+                <source>RAG Prompts</source>
+            </trans-unit>
+            <trans-unit id="index.prompts.hint">
+                <source>Edit these texts in Sites → Site Configuration → Settings (Search). Changing a prompt invalidates cached answers because the prompt is part of the cache key.</source>
+            </trans-unit>
+            <trans-unit id="index.prompts.noSite">
+                <source>No site could be resolved. Showing code defaults. Select a page in the page tree or activate the mai-search site set.</source>
+            </trans-unit>
+            <trans-unit id="index.prompts.usingDefault">
+                <source>Using code defaults</source>
+            </trans-unit>
+            <trans-unit id="index.prompts.usingOverride">
+                <source>Using site settings override</source>
+            </trans-unit>
+            <trans-unit id="index.prompts.systemPrompt">
+                <source>System prompt</source>
+            </trans-unit>
+            <trans-unit id="index.prompts.userTemplate">
+                <source>User template ({context}, {query})</source>
+            </trans-unit>
             <trans-unit id="queue.title">
                 <source>Search Index Queue</source>
             </trans-unit>

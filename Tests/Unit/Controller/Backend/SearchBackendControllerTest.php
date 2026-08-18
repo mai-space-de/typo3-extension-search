@@ -178,6 +178,20 @@ final class SearchBackendControllerTest extends TestCase
     }
 
     #[Test]
+    public function controllerHasRagPromptFactoryDependency(): void
+    {
+        $params = (new \ReflectionMethod(SearchBackendController::class, '__construct'))
+            ->getParameters();
+
+        $param = $this->findParam($params, 'ragPromptFactory');
+        self::assertInstanceOf(\ReflectionNamedType::class, $param->getType());
+        self::assertSame(
+            \Maispace\MaiSearch\Configuration\RagPromptFactory::class,
+            $param->getType()->getName(),
+        );
+    }
+
+    #[Test]
     public function queueActionMethodExists(): void
     {
         self::assertTrue(method_exists(SearchBackendController::class, 'queueAction'));

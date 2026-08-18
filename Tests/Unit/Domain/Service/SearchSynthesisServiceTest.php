@@ -11,6 +11,7 @@ use Maispace\MaiSearch\Domain\Dto\SynthesisResult;
 use Maispace\MaiSearch\Domain\Model\ChatRequest;
 use Maispace\MaiSearch\Domain\Model\ChatResponse;
 use Maispace\MaiSearch\Domain\Model\ConversationHistory;
+use Maispace\MaiSearch\Domain\Model\RagPrompt;
 use Maispace\MaiSearch\Domain\Service\ChatProviderInterface;
 use Maispace\MaiSearch\Domain\Service\SearchSynthesisService;
 use Maispace\MaiSearch\Service\AnswerCacheService;
@@ -304,6 +305,48 @@ final class SearchSynthesisServiceTest extends TestCase
         self::assertSame('prior question', $request->messages[1]->content);
         self::assertSame('user', $request->messages[2]->role);
         self::assertStringContainsString('query', $request->messages[2]->content);
+    }
+
+    #[Test]
+    public function synthesiseUsesCustomSystemPromptWhenProvided(): void
+    {
+        $prompt = new RagPrompt('You are the BGM assistant.', RagPrompt::DEFAULT_USER_TEMPLATE);
+
+        $this->chatProvider
+            ->expects(self::once())
+            ->method('complete')
+            ->with(self::callback(static function (ChatRequest $request) use ($prompt): bool {
+                return $request->messages[0]->role === 'system'
+                    && $request->messages[0]->content === $prompt->systemPrompt;
+            }))
+            ->willReturn(new ChatResponse('ok'));
+
+        $this->service->synthesise('query', [$this->makeResult()], true, null, $prompt);
+    }
+
+    #[Test]
+    public function synthesiseRendersCustomUserTemplatePlaceholders(): void
+    {
+        $prompt = new RagPrompt('sys', "Question={query}\nSources={context}");
+
+        $this->chatProvider
+            ->expects(self::once())
+            ->method('complete')
+            ->with(self::callback(static function (ChatRequest $request): bool {
+                $userMessage = $request->messages[1]->content;
+
+                return str_contains($userMessage, 'Question=What is TYPO3?')
+                    && str_contains($userMessage, '[1] TYPO3 Introduction:');
+            }))
+            ->willReturn(new ChatResponse('ok'));
+
+        $this->service->synthesise(
+            'What is TYPO3?',
+            [$this->makeResult(title: 'TYPO3 Introduction', snippet: 'CMS')],
+            true,
+            null,
+            $prompt,
+        );
     }
 
     // ── answer cache (SPEC-v2.md Phase 7) ─────────────────────────────────────

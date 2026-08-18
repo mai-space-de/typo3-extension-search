@@ -60,6 +60,23 @@ final class AnswerCacheServiceTest extends TestCase
     }
 
     #[Test]
+    public function differentPromptFingerprintsProduceDifferentCacheKeys(): void
+    {
+        $keys = [];
+        $this->cache->method('get')->willReturnCallback(function (string $key) use (&$keys): bool {
+            $keys[] = $key;
+
+            return false;
+        });
+
+        $this->subject->get('query', ['/a'], [], 'fingerprint-a');
+        $this->subject->get('query', ['/a'], [], 'fingerprint-b');
+
+        self::assertCount(2, $keys);
+        self::assertNotSame($keys[0], $keys[1]);
+    }
+
+    #[Test]
     public function getCacheKeyIsCaseInsensitiveOnQuery(): void
     {
         $keys = [];

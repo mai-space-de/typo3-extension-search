@@ -64,6 +64,27 @@ final class RagApiSupportTest extends TestCase
     }
 
     #[Test]
+    public function resolveSiteReturnsSiteAttributeWhenPresent(): void
+    {
+        $site = $this->createMock(\TYPO3\CMS\Core\Site\Entity\Site::class);
+        $request = $this->createMock(ServerRequestInterface::class);
+        $request->method('getAttribute')->willReturnCallback(
+            static fn(string $name): mixed => $name === 'site' ? $site : null,
+        );
+
+        self::assertSame($site, $this->subject->resolveSite($request));
+    }
+
+    #[Test]
+    public function resolveSiteReturnsNullWhenAttributeMissing(): void
+    {
+        $request = $this->createMock(ServerRequestInterface::class);
+        $request->method('getAttribute')->willReturn(null);
+
+        self::assertNull($this->subject->resolveSite($request));
+    }
+
+    #[Test]
     public function buildSourcesMapsResultFields(): void
     {
         $sources = $this->subject->buildSources([

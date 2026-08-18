@@ -87,6 +87,13 @@ final class RagApiSupport
         );
     }
 
+    public function resolveSite(ServerRequestInterface $request): ?Site
+    {
+        $site = $request->getAttribute('site');
+
+        return $site instanceof Site ? $site : null;
+    }
+
     public function resolveLanguage(ServerRequestInterface $request, ?string $locale = null): ?SiteLanguage
     {
         $locale = trim((string) $locale);

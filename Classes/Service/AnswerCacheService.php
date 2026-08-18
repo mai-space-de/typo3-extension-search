@@ -10,9 +10,9 @@ use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
 /**
  * Caches synthesized RAG answers to avoid redundant LLM calls.
  *
- * Cache keys are based on a hash of the query + resolved context IDs + conversation history,
- * ensuring that identical requests return cached answers while content changes invalidate
- * the cache appropriately.
+ * Cache keys are based on a hash of the query + resolved context IDs + conversation
+ * history + RAG prompt fingerprint, ensuring that identical requests return cached
+ * answers while content or prompt edits invalidate the cache appropriately.
  *
  * Invalidation is tagged by context document identity (each context result's URL — the
  * only stable identifier SearchResult exposes, since its DTO shape is a frozen external
@@ -41,9 +41,9 @@ final class AnswerCacheService
      * @param list<string> $contextIds
      * @param list<array{role: string, content: string}> $history
      */
-    public function get(string $query, array $contextIds, array $history): ?string
+    public function get(string $query, array $contextIds, array $history, string $promptFingerprint = ''): ?string
     {
-        $cacheKey = $this->buildCacheKey($query, $contextIds, $history);
+        $cacheKey = $this->buildCacheKey($query, $contextIds, $history, $promptFingerprint);
 
         $cached = $this->getCache()->get($cacheKey);
 
@@ -54,9 +54,15 @@ final class AnswerCacheService
      * @param list<string> $contextIds
      * @param list<array{role: string, content: string}> $history
      */
-    public function set(string $query, array $contextIds, array $history, string $answer, int $ttl = self::DEFAULT_TTL): void
-    {
-        $cacheKey = $this->buildCacheKey($query, $contextIds, $history);
+    public function set(
+        string $query,
+        array $contextIds,
+        array $history,
+        string $answer,
+        int $ttl = self::DEFAULT_TTL,
+        string $promptFingerprint = '',
+    ): void {
+        $cacheKey = $this->buildCacheKey($query, $contextIds, $history, $promptFingerprint);
 
         $tags = ['maisearch_answer'];
         foreach ($contextIds as $contextId) {
@@ -86,13 +92,20 @@ final class AnswerCacheService
      * @param list<string> $contextIds
      * @param list<array{role: string, content: string}> $history
      */
-    private function buildCacheKey(string $query, array $contextIds, array $history): string
-    {
+    private function buildCacheKey(
+        string $query,
+        array $contextIds,
+        array $history,
+        string $promptFingerprint = '',
+    ): string {
         $normalizedQuery = mb_strtolower(trim($query));
         $contextKey = implode(',', $contextIds);
         $historyKey = json_encode($history, JSON_THROW_ON_ERROR);
 
-        $hash = hash('sha256', $normalizedQuery . '|' . $contextKey . '|' . $historyKey);
+        $hash = hash(
+            'sha256',
+            $normalizedQuery . '|' . $contextKey . '|' . $historyKey . '|' . $promptFingerprint,
+        );
 
         return self::CACHE_IDENTIFIER_PREFIX . $hash;
     }

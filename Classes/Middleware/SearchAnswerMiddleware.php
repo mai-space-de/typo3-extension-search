@@ -6,6 +6,7 @@ namespace Maispace\MaiSearch\Middleware;
 
 use Maispace\MaiBase\Middleware\Api\AbstractApiMiddleware;
 use Maispace\MaiSearch\Configuration\RagConfiguration;
+use Maispace\MaiSearch\Configuration\RagPromptFactory;
 use Maispace\MaiSearch\Domain\Dto\SearchResult;
 use Maispace\MaiSearch\Domain\Model\ConversationHistory;
 use Maispace\MaiSearch\Domain\Service\RagContextResolver;
@@ -39,6 +40,7 @@ class SearchAnswerMiddleware extends AbstractApiMiddleware
         private readonly RagConfiguration $ragConfiguration,
         private readonly ProviderAvailabilityService $providerAvailability,
         private readonly RagApiSupport $ragApiSupport,
+        private readonly RagPromptFactory $ragPromptFactory,
     ) {
         parent::__construct($responseFactory, $streamFactory);
     }
@@ -73,7 +75,13 @@ class SearchAnswerMiddleware extends AbstractApiMiddleware
             return $this->errorResponse('No results to answer from.', 404);
         }
 
-        $synthesis = $this->synthesisService->synthesise($query, $context, true, $history);
+        $synthesis = $this->synthesisService->synthesise(
+            $query,
+            $context,
+            true,
+            $history,
+            $this->ragPromptFactory->fromSite($this->ragApiSupport->resolveSite($request)),
+        );
         $updatedHistory = $history
             ->withUserMessage($query)
             ->withAssistantMessage($synthesis->answer)
