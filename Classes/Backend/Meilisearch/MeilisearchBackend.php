@@ -109,13 +109,17 @@ final class MeilisearchBackend implements SearchBackendInterface, ChunkSearchBac
             return new SearchResultPage([], 0, [], $page, $limit);
         }
 
-        $indexUid = $this->indexNameResolver->forLanguage($this->resolveLanguageCode($request->language));
+        $languageCode = $this->resolveLanguageCode($request->language);
+        $indexUid = $this->indexNameResolver->forLanguage($languageCode);
+        $keywordQuery = IndexSettings::keywordQuery($request->query, $languageCode);
 
         $searchParameters = [
             'limit' => $limit,
             'offset' => $request->offset,
             'facets' => [self::TYPE_FILTER_ATTRIBUTE],
             'showRankingScore' => true,
+            'matchingStrategy' => 'last',
+            'attributesToSearchOn' => IndexSettings::DOCUMENT_SEARCHABLE_ATTRIBUTES,
         ];
 
         $normalizedType = $this->normalizeTypeFilter($request->filters[self::TYPE_FILTER_ATTRIBUTE] ?? null);
@@ -123,7 +127,7 @@ final class MeilisearchBackend implements SearchBackendInterface, ChunkSearchBac
             $searchParameters['filter'] = sprintf('%s = "%s"', self::TYPE_FILTER_ATTRIBUTE, $normalizedType);
         }
 
-        $response = $this->connectionFactory->getClient()->search($indexUid, $request->query, $searchParameters);
+        $response = $this->connectionFactory->getClient()->search($indexUid, $keywordQuery, $searchParameters);
         $results = $this->buildResults($response);
 
         if ($request->ragEnabled) {

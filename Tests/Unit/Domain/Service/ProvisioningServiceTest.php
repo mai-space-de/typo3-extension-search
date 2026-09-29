@@ -97,6 +97,7 @@ final class ProvisioningServiceTest extends TestCase
 
         $client = $this->createMock(MeilisearchClientInterface::class);
         $client->expects(self::exactly(4))->method('ensureIndex');
+        $client->expects(self::exactly(4))->method('updateSettings');
         $client->expects(self::exactly(2))->method('configureEmbedder')->with(self::anything(), 'default', 1024);
         $this->meilisearchConnectionFactory->method('getClient')->willReturn($client);
 
@@ -119,6 +120,7 @@ final class ProvisioningServiceTest extends TestCase
 
         $client = $this->createMock(MeilisearchClientInterface::class);
         $client->expects(self::exactly(2))->method('ensureIndex')->with(self::logicalOr('mai_search', 'mai_search_chunks'), self::anything());
+        $client->expects(self::exactly(2))->method('updateSettings');
         $this->meilisearchConnectionFactory->method('getClient')->willReturn($client);
 
         $result = $this->service->provision();

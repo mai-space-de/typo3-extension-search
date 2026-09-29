@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Maispace\MaiSearch\Command;
 
+use Maispace\MaiSearch\Domain\Dto\ProvisioningResult;
 use Maispace\MaiSearch\Domain\Service\IndexManagementService;
-use Maispace\MaiSearch\Domain\Solr\SchemaManager;
+use Maispace\MaiSearch\Domain\Service\ProvisioningService;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -15,13 +16,13 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
     name: 'mai-search:index',
-    description: 'Reindex all content into Solr search indexes',
+    description: 'Reindex all content into the active search backend',
 )]
 final class IndexCommand extends Command
 {
     public function __construct(
         private readonly IndexManagementService $indexManagementService,
-        private readonly SchemaManager $schemaManager,
+        private readonly ProvisioningService $provisioningService,
     ) {
         parent::__construct();
     }
@@ -32,7 +33,7 @@ final class IndexCommand extends Command
             'schema-only',
             null,
             InputOption::VALUE_NONE,
-            'Only ensure vector field exists in all cores (do not index content)',
+            'Only provision the active backend (do not index content)',
         );
 
         $this->addOption(
@@ -52,40 +53,39 @@ final class IndexCommand extends Command
         }
 
         if ($input->getOption('schema-only')) {
-            return $this->ensureSchema($io);
+            return $this->provisionOnly($io);
         }
 
         return $this->reindexAll($io);
     }
 
-    private function ensureSchema(SymfonyStyle $io): int
+    private function provisionOnly(SymfonyStyle $io): int
     {
-        $io->title('Ensuring Solr schema has vector field');
+        $io->title('Provisioning the active search backend');
 
-        try {
-            $this->schemaManager->ensureVectorFieldExistsInAllCores();
-            $io->success('Vector field added to all Solr cores successfully');
-            return Command::SUCCESS;
-        } catch (\Throwable $e) {
-            $io->error('Failed to ensure vector field exists: ' . $e->getMessage());
+        $result = $this->provision($io);
+        if ($result === null) {
             return Command::FAILURE;
         }
+
+        $this->reportProvisioning($io, $result);
+
+        return Command::SUCCESS;
     }
 
     private function reindexAll(SymfonyStyle $io): int
     {
-        $io->title('Starting full Solr reindex');
+        $io->title('Starting full reindex');
 
-        $io->section('Step 1: Ensuring schema has vector field');
-        try {
-            $this->schemaManager->ensureVectorFieldExistsInAllCores();
-            $io->success('Schema ready');
-        } catch (\Throwable $e) {
-            $io->error('Schema setup failed: ' . $e->getMessage());
+        $io->section('Step 1: Provisioning search infrastructure');
+        $result = $this->provision($io);
+        if ($result === null) {
             return Command::FAILURE;
         }
 
-        $io->section('Step 2: Reindexing all content');
+        $this->reportProvisioning($io, $result);
+
+        $io->section(sprintf('Step 2: Reindexing all content into %s', $result->backend));
         try {
             $this->indexManagementService->reindexAll();
             $io->success('Reindex completed successfully');
@@ -93,8 +93,42 @@ final class IndexCommand extends Command
             return $this->showStats($io);
         } catch (\Throwable $e) {
             $io->error('Reindex failed: ' . $e->getMessage());
+
             return Command::FAILURE;
         }
+    }
+
+    private function provision(SymfonyStyle $io): ?ProvisioningResult
+    {
+        try {
+            return $this->provisioningService->provision();
+        } catch (\Throwable $e) {
+            $io->error('Provisioning failed: ' . $e->getMessage());
+
+            return null;
+        }
+    }
+
+    private function reportProvisioning(SymfonyStyle $io, ProvisioningResult $result): void
+    {
+        if ($result->message !== null) {
+            $io->note($result->message);
+
+            return;
+        }
+
+        if ($result->provisioned === []) {
+            $io->success(sprintf('%s: everything already exists, nothing to do.', $result->backend));
+
+            return;
+        }
+
+        $io->success(sprintf(
+            '%s: provisioned %d item(s): %s',
+            $result->backend,
+            count($result->provisioned),
+            implode(', ', $result->provisioned),
+        ));
     }
 
     private function showStats(SymfonyStyle $io): int
@@ -106,6 +140,7 @@ final class IndexCommand extends Command
 
             if ($stats['totalDocuments'] === 0) {
                 $io->warning('No documents indexed yet');
+
                 return Command::SUCCESS;
             }
 
@@ -129,6 +164,7 @@ final class IndexCommand extends Command
             return Command::SUCCESS;
         } catch (\Throwable $e) {
             $io->error('Failed to fetch stats: ' . $e->getMessage());
+
             return Command::FAILURE;
         }
     }

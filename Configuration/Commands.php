@@ -7,6 +7,6 @@ return [
     'mai-search:index' => [
         'class' => IndexCommand::class,
         'schedulable' => true,
-        'description' => 'Reindex all content into Solr search indexes',
+        'description' => 'Reindex all content into the active search backend',
     ],
 ];

@@ -122,6 +122,23 @@ final class MeilisearchClientTest extends TestCase
     }
 
     #[Test]
+    public function updateSettingsDelegatesToIndexWhenSettingsAreNotEmpty(): void
+    {
+        $settings = ['searchableAttributes' => ['title', 'content']];
+        $this->index->expects(self::once())->method('updateSettings')->with($settings);
+
+        $this->client->updateSettings('mai_search_de', $settings);
+    }
+
+    #[Test]
+    public function updateSettingsSkipsCallWhenSettingsAreEmpty(): void
+    {
+        $this->index->expects(self::never())->method('updateSettings');
+
+        $this->client->updateSettings('mai_search_de', []);
+    }
+
+    #[Test]
     public function searchMapsSdkResultIntoSearchResponse(): void
     {
         $sdkResult = $this->createMock(SearchResult::class);

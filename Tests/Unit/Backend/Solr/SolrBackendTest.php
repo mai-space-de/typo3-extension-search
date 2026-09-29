@@ -139,7 +139,12 @@ class SolrBackendTest extends TestCase
             ->expects(self::once())
             ->method('search')
             ->with(self::callback(static function (SearchQuery $query): bool {
-                return $query->getQuery() === '(title_t:(test) OR content_t:(test))'
+                $params = $query->getParams();
+
+                return $query->getQuery() === 'test'
+                    && ($params['defType'] ?? null) === 'edismax'
+                    && ($params['qf'] ?? null) === 'title_t^3 content_t'
+                    && ($params['mm'] ?? null) === '2'
                     && $query->getRows() === 10
                     && $query->getStart() === 5;
             }))
@@ -148,6 +153,29 @@ class SolrBackendTest extends TestCase
         $this->connectionFactory->method('getConnection')->willReturn($client);
 
         $this->backend->search(new SearchRequest(query: 'test', limit: 10, offset: 5));
+    }
+
+    #[Test]
+    public function searchUsesEdismaxWithTitleBoostAndMinimumShouldMatch(): void
+    {
+        $client = $this->createMock(SolrClientInterface::class);
+        $client
+            ->expects(self::once())
+            ->method('search')
+            ->with(self::callback(static function (SearchQuery $query): bool {
+                $params = $query->getParams();
+
+                return $query->getQuery() === 'Männer in Pulheim'
+                    && ($params['defType'] ?? null) === 'edismax'
+                    && ($params['qf'] ?? null) === 'title_t^3 content_t'
+                    && ($params['pf'] ?? null) === 'title_t^2 content_t'
+                    && ($params['mm'] ?? null) === '2';
+            }))
+            ->willReturn($this->createSearchResponse([]));
+
+        $this->connectionFactory->method('getConnection')->willReturn($client);
+
+        $this->backend->search(new SearchRequest(query: 'Männer in Pulheim'));
     }
 
     #[Test]

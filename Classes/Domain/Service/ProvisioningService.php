@@ -6,6 +6,7 @@ namespace Maispace\MaiSearch\Domain\Service;
 
 use Maispace\MaiSearch\Backend\Meilisearch\ConnectionFactory as MeilisearchConnectionFactory;
 use Maispace\MaiSearch\Backend\Meilisearch\IndexNameResolver as MeilisearchIndexNameResolver;
+use Maispace\MaiSearch\Backend\Meilisearch\IndexSettings;
 use Maispace\MaiSearch\Backend\Meilisearch\MeilisearchBackend;
 use Maispace\MaiSearch\Backend\Meilisearch\VectorStoreProvisioner;
 use Maispace\MaiSearch\Domain\Dto\ProvisioningResult;
@@ -73,12 +74,14 @@ class ProvisioningService
         foreach ($this->resolveSiteLanguageCodes() as $languageCode) {
             $indexUid = $this->meilisearchIndexNameResolver->forLanguage($languageCode);
             $client->ensureIndex($indexUid, [self::TYPE_FILTER_ATTRIBUTE]);
+            $client->updateSettings($indexUid, IndexSettings::forDocuments($languageCode));
             $ensured[] = $indexUid;
 
             // Separate index, never given an embedder on the main one above — see
             // MeilisearchBackend's class docblock for why they can't be shared.
             $chunkIndexUid = $this->meilisearchIndexNameResolver->forChunks($languageCode);
             $client->ensureIndex($chunkIndexUid, self::CHUNK_FILTERABLE_ATTRIBUTES);
+            $client->updateSettings($chunkIndexUid, IndexSettings::forChunks($languageCode));
             $client->configureEmbedder($chunkIndexUid, MeilisearchBackend::EMBEDDER_NAME, $dimensions);
             $ensured[] = $chunkIndexUid;
         }

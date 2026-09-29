@@ -99,6 +99,14 @@ final class SolrBackend implements SearchBackendInterface, ChunkSearchBackendInt
         $solrQuery->setQuery($this->buildSolrQuery($request->query));
         $solrQuery->setRows($limit);
         $solrQuery->setStart($request->offset);
+        $solrQuery->addParam('defType', 'edismax');
+        $solrQuery->addParam('qf', 'title_t^3 content_t');
+        $solrQuery->addParam('pf', 'title_t^2 content_t');
+        $solrQuery->addParam('ps', '2');
+        // At least two clauses when the query has two or more terms; a single
+        // term still matches. Stops Lucene's default OR from treating
+        // "Männer in Pulheim" as Männer OR in OR Pulheim.
+        $solrQuery->addParam('mm', '2');
         $solrQuery->addFacetField(self::TYPE_FACET_KEY, 'type_s', ['typefilter']);
         // Chunk documents (SPEC-v3-caching-chunking.md Phase D) live in the same
         // core and share content_t, so they'd otherwise match text queries and leak
@@ -231,7 +239,9 @@ final class SolrBackend implements SearchBackendInterface, ChunkSearchBackendInt
     }
 
     /**
-     * Bare DDEV Solr cores have no copyField into `_text_`; search title and body fields explicitly.
+     * Bare DDEV Solr cores have no copyField into `_text_`. edismax uses this
+     * as `q` together with `qf=title_t^3 content_t` so title matches rank higher
+     * than body matches.
      */
     private function buildSolrQuery(string $query): string
     {
@@ -241,7 +251,7 @@ final class SolrBackend implements SearchBackendInterface, ChunkSearchBackendInt
             trim($query),
         );
 
-        return sprintf('(title_t:(%s) OR content_t:(%s))', $escaped, $escaped);
+        return is_string($escaped) ? $escaped : trim($query);
     }
 
     private function normalizeTypeFilter(?string $type): ?string

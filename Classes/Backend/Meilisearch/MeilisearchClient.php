@@ -24,6 +24,15 @@ final class MeilisearchClient implements MeilisearchClientInterface
         }
     }
 
+    public function updateSettings(string $indexUid, array $settings): void
+    {
+        if ($settings === []) {
+            return;
+        }
+
+        $this->client->index($indexUid)->updateSettings($settings);
+    }
+
     public function addDocuments(string $indexUid, array $documents): void
     {
         $payload = array_map(

@@ -17,6 +17,11 @@ interface MeilisearchClientInterface
     public function ensureIndex(string $indexUid, array $filterableAttributes = [], string $primaryKey = 'id'): void;
 
     /**
+     * @param array<string, mixed> $settings
+     */
+    public function updateSettings(string $indexUid, array $settings): void;
+
+    /**
      * @param MeilisearchDocument[] $documents
      */
     public function addDocuments(string $indexUid, array $documents): void;

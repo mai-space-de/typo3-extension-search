@@ -151,6 +151,40 @@ final class MeilisearchBackendTest extends TestCase
     }
 
     #[Test]
+    public function searchStripsGermanStopWordsFromKeywordQuery(): void
+    {
+        $locale = new Locale('de');
+        $language = $this->createMock(SiteLanguage::class);
+        $language->method('getLocale')->willReturn($locale);
+
+        $this->client
+            ->expects(self::once())
+            ->method('search')
+            ->with('mai_search_de', 'Ladies Club?', self::anything())
+            ->willReturn(new SearchResponse([], 0, 1));
+
+        $this->backend->search(new SearchRequest(
+            query: 'Was ist der Ladies Club?',
+            language: $language,
+        ));
+    }
+
+    #[Test]
+    public function searchRestrictsMatchingToTitleAndContentWithLastTermStrategy(): void
+    {
+        $this->client
+            ->expects(self::once())
+            ->method('search')
+            ->with(self::anything(), self::anything(), self::callback(
+                static fn(array $params): bool => ($params['matchingStrategy'] ?? null) === 'last'
+                    && ($params['attributesToSearchOn'] ?? null) === ['title', 'content'],
+            ))
+            ->willReturn(new SearchResponse([], 0, 1));
+
+        $this->backend->search(new SearchRequest(query: 'gymnastics'));
+    }
+
+    #[Test]
     public function searchMapsFacetDistributionToTypeCounts(): void
     {
         $this->client->method('search')->willReturn(new SearchResponse(
