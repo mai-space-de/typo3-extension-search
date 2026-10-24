@@ -83,4 +83,24 @@ class IndexerRegistryTest extends TestCase
 
         self::assertNull($registry->getIndexerForTable('unknown_table'));
     }
+
+    #[Test]
+    public function getIndexersForTableReturnsAllMatchingIndexers(): void
+    {
+        $registry = new IndexerRegistry();
+        $pageIndexer = $this->createMockIndexer('page', 'pages');
+        $newsIndexer = $this->createMockIndexer('news', 'pages');
+        $faqIndexer = $this->createMockIndexer('faq', 'tx_maifaq_question');
+
+        $registry->addIndexer($pageIndexer);
+        $registry->addIndexer($newsIndexer);
+        $registry->addIndexer($faqIndexer);
+
+        $matching = $registry->getIndexersForTable('pages');
+
+        self::assertCount(2, $matching);
+        self::assertSame($pageIndexer, $matching[0]);
+        self::assertSame($newsIndexer, $matching[1]);
+        self::assertSame([], $registry->getIndexersForTable('unknown_table'));
+    }
 }

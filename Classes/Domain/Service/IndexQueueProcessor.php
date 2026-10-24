@@ -83,8 +83,8 @@ class IndexQueueProcessor implements LoggerAwareInterface, SingletonInterface
         $recordUid = (int) $job['record_uid'];
         $operation = (string) $job['operation'];
 
-        $indexer = $this->indexerRegistry->getIndexerForTable($table);
-        if ($indexer === null) {
+        $indexers = $this->indexerRegistry->getIndexersForTable($table);
+        if ($indexers === []) {
             $this->indexQueueRepository->markFailed(
                 $uid,
                 sprintf('No indexer registered for table "%s"', $table),
@@ -94,13 +94,15 @@ class IndexQueueProcessor implements LoggerAwareInterface, SingletonInterface
         }
 
         try {
-            if ($operation === IndexQueueRepository::OPERATION_REMOVE) {
-                $this->eventDispatcher->dispatch(
-                    new BeforeRecordRemovedEvent($indexer->getType(), $table, $recordUid),
-                );
-                $indexer->removeRecord($recordUid, $table);
-            } else {
-                $this->indexRecord($indexer, $table, $recordUid);
+            foreach ($indexers as $indexer) {
+                if ($operation === IndexQueueRepository::OPERATION_REMOVE) {
+                    $this->eventDispatcher->dispatch(
+                        new BeforeRecordRemovedEvent($indexer->getType(), $table, $recordUid),
+                    );
+                    $indexer->removeRecord($recordUid, $table);
+                } else {
+                    $this->indexRecord($indexer, $table, $recordUid);
+                }
             }
 
             $this->indexQueueRepository->markDone($uid);

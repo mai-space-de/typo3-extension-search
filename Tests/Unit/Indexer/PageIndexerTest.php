@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Maispace\MaiSearch\Tests\Unit\Indexer;
 
+use Maispace\MaiBase\Backend\CustomPageModule\DoktypeIds;
 use Maispace\MaiSearch\Domain\Service\SearchBackendInterface;
 use Maispace\MaiSearch\Indexer\PageIndexer;
 use Maispace\MaiSearch\Service\BackendRegistry;
@@ -31,6 +32,16 @@ final class PageIndexerTest extends TestCase
     public function getTypeReturnsPage(): void
     {
         self::assertSame('page', $this->subject->getType());
+    }
+
+    #[Test]
+    public function indexableDoktypesIncludeStandardNewsAndEvent(): void
+    {
+        $doktypes = PageIndexer::indexableDoktypes();
+
+        self::assertContains(1, $doktypes);
+        self::assertContains(DoktypeIds::NEWS, $doktypes);
+        self::assertContains(DoktypeIds::EVENT, $doktypes);
     }
 
     #[Test]

@@ -56,8 +56,7 @@ class DataHandlerHook
         array $fieldArray,
         DataHandler $dataHandler,
     ): void {
-        $indexer = $this->indexerRegistry->getIndexerForTable($table);
-        if ($indexer === null) {
+        if ($this->indexerRegistry->getIndexersForTable($table) === []) {
             return;
         }
 
@@ -91,8 +90,7 @@ class DataHandlerHook
         bool &$recordWasDeleted,
         DataHandler $dataHandler,
     ): void {
-        $indexer = $this->indexerRegistry->getIndexerForTable($table);
-        if ($indexer === null) {
+        if ($this->indexerRegistry->getIndexersForTable($table) === []) {
             return;
         }
 

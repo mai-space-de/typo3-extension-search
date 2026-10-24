@@ -36,7 +36,7 @@ final class DataHandlerHookTest extends TestCase
     private function makeRegistry(?SearchIndexerInterface $indexer = null): IndexerRegistry
     {
         $registry = $this->createMock(IndexerRegistry::class);
-        $registry->method('getIndexerForTable')->willReturn($indexer);
+        $registry->method('getIndexersForTable')->willReturn($indexer === null ? [] : [$indexer]);
 
         return $registry;
     }

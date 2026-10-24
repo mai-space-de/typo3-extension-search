@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Maispace\MaiSearch\Indexer;
 
+use Maispace\MaiBase\Backend\CustomPageModule\DoktypeIds;
 use Maispace\MaiSearch\Domain\Dto\SearchResult;
 use Maispace\MaiSearch\Domain\Model\IndexingContext;
 use Maispace\MaiSearch\Domain\Service\SearchResultFormatterInterface;
@@ -17,6 +18,21 @@ class PageIndexer extends AbstractIndexer implements SearchResultFormatterInterf
     use TcaEnableColumnsTrait;
 
     private const DOKTYPE_STANDARD = 1;
+
+    /**
+     * Doktypes included in full reindex / UID repopulation.
+     * Standard pages plus News/Event custom pages (BGM-21).
+     *
+     * @return list<int>
+     */
+    public static function indexableDoktypes(): array
+    {
+        return [
+            self::DOKTYPE_STANDARD,
+            DoktypeIds::NEWS,
+            DoktypeIds::EVENT,
+        ];
+    }
 
     public function getType(): string
     {
@@ -167,10 +183,13 @@ class PageIndexer extends AbstractIndexer implements SearchResultFormatterInterf
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
             ->getQueryBuilderForTable('pages');
 
-        $queryBuilder->select('uid', 'title', 'description', 'slug', 'crdate', 'tstamp', 'pid')
+        $queryBuilder->select('uid', 'title', 'description', 'slug', 'crdate', 'tstamp', 'pid', 'doktype')
             ->from('pages')
             ->where(
-                $queryBuilder->expr()->eq('doktype', $queryBuilder->createNamedParameter(self::DOKTYPE_STANDARD, Connection::PARAM_INT)),
+                $queryBuilder->expr()->in(
+                    'doktype',
+                    $queryBuilder->createNamedParameter(self::indexableDoktypes(), Connection::PARAM_INT_ARRAY),
+                ),
             );
 
         $this->addEnableColumnConstraints($queryBuilder, 'pages');
@@ -205,7 +224,10 @@ class PageIndexer extends AbstractIndexer implements SearchResultFormatterInterf
         $queryBuilder->select('uid')
             ->from('pages')
             ->where(
-                $queryBuilder->expr()->eq('doktype', $queryBuilder->createNamedParameter(self::DOKTYPE_STANDARD, Connection::PARAM_INT)),
+                $queryBuilder->expr()->in(
+                    'doktype',
+                    $queryBuilder->createNamedParameter(self::indexableDoktypes(), Connection::PARAM_INT_ARRAY),
+                ),
             );
 
         $this->addEnableColumnConstraints($queryBuilder, 'pages');

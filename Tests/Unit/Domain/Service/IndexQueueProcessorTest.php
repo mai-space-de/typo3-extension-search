@@ -150,7 +150,7 @@ final class IndexQueueProcessorTest extends TestCase
         ]);
 
         $indexer = $this->createMock(SearchIndexerInterface::class);
-        $this->indexerRegistry->method('getIndexerForTable')->willReturn($indexer);
+        $this->indexerRegistry->method('getIndexersForTable')->willReturn([$indexer]);
 
         $this->indexQueueRepository->expects(self::once())->method('cleanupOld');
 
@@ -169,7 +169,7 @@ final class IndexQueueProcessorTest extends TestCase
         $this->indexQueueRepository->expects(self::once())->method('markProcessing')->with([1, 2]);
 
         $indexer = $this->createMock(SearchIndexerInterface::class);
-        $this->indexerRegistry->method('getIndexerForTable')->willReturn($indexer);
+        $this->indexerRegistry->method('getIndexersForTable')->willReturn([$indexer]);
 
         $processor = $this->processor($this->brokenSiteFinder());
 
@@ -187,10 +187,29 @@ final class IndexQueueProcessorTest extends TestCase
 
         $indexer = $this->createMock(SearchIndexerInterface::class);
         $indexer->expects(self::once())->method('removeRecord')->with(10, 'pages');
-        $this->indexerRegistry->method('getIndexerForTable')->willReturn($indexer);
+        $this->indexerRegistry->method('getIndexersForTable')->willReturn([$indexer]);
 
         $this->indexQueueRepository->expects(self::once())->method('markDone')->with(1);
         $this->indexQueueRepository->expects(self::never())->method('markFailed');
+
+        $processor = $this->processor($this->brokenSiteFinder());
+        $processor->processBatch();
+    }
+
+    #[Test]
+    public function removeJobInvokesEveryIndexerThatSupportsTheTable(): void
+    {
+        $this->indexQueueRepository->method('findOpenBatch')->willReturn([
+            $this->job(1, 'pages', 10, IndexQueueRepository::OPERATION_REMOVE),
+        ]);
+
+        $pageIndexer = $this->createMock(SearchIndexerInterface::class);
+        $pageIndexer->expects(self::once())->method('removeRecord')->with(10, 'pages');
+        $newsIndexer = $this->createMock(SearchIndexerInterface::class);
+        $newsIndexer->expects(self::once())->method('removeRecord')->with(10, 'pages');
+        $this->indexerRegistry->method('getIndexersForTable')->willReturn([$pageIndexer, $newsIndexer]);
+
+        $this->indexQueueRepository->expects(self::once())->method('markDone')->with(1);
 
         $processor = $this->processor($this->brokenSiteFinder());
         $processor->processBatch();
@@ -213,7 +232,7 @@ final class IndexQueueProcessorTest extends TestCase
                 self::callback(static fn(object $record): bool => $record->uid === 10),
                 self::isInstanceOf(IndexingContext::class),
             );
-        $this->indexerRegistry->method('getIndexerForTable')->willReturn($indexer);
+        $this->indexerRegistry->method('getIndexersForTable')->willReturn([$indexer]);
 
         $this->connectionPool
             ->method('getQueryBuilderForTable')
@@ -236,7 +255,7 @@ final class IndexQueueProcessorTest extends TestCase
         $indexer = $this->createMock(SearchIndexerInterface::class);
         $indexer->expects(self::never())->method('indexRecord');
         $indexer->expects(self::once())->method('removeRecord')->with(10, 'pages');
-        $this->indexerRegistry->method('getIndexerForTable')->willReturn($indexer);
+        $this->indexerRegistry->method('getIndexersForTable')->willReturn([$indexer]);
 
         $this->connectionPool
             ->method('getQueryBuilderForTable')
@@ -274,7 +293,7 @@ final class IndexQueueProcessorTest extends TestCase
                 self::anything(),
                 self::callback(static fn(IndexingContext $context): bool => $context->languageCode === 'de' && $context->languageUid === 1),
             );
-        $this->indexerRegistry->method('getIndexerForTable')->willReturn($indexer);
+        $this->indexerRegistry->method('getIndexersForTable')->willReturn([$indexer]);
 
         $this->connectionPool
             ->method('getQueryBuilderForTable')
@@ -293,7 +312,7 @@ final class IndexQueueProcessorTest extends TestCase
         $this->indexQueueRepository->method('findOpenBatch')->willReturn([
             $this->job(1, 'tx_unknown_table', 10, IndexQueueRepository::OPERATION_INDEX),
         ]);
-        $this->indexerRegistry->method('getIndexerForTable')->willReturn(null);
+        $this->indexerRegistry->method('getIndexersForTable')->willReturn([]);
 
         $this->indexQueueRepository
             ->expects(self::once())
@@ -314,7 +333,7 @@ final class IndexQueueProcessorTest extends TestCase
 
         $indexer = $this->createMock(SearchIndexerInterface::class);
         $indexer->method('removeRecord')->willThrowException(new \RuntimeException('Solr unreachable'));
-        $this->indexerRegistry->method('getIndexerForTable')->willReturn($indexer);
+        $this->indexerRegistry->method('getIndexersForTable')->willReturn([$indexer]);
 
         $this->indexQueueRepository
             ->expects(self::once())
