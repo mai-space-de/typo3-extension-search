@@ -10,7 +10,7 @@
         }
     ],
     "require": {
-        "php": "^8.2",
+        "php": "^8.5",
         "guzzlehttp/guzzle": "^7.0",
         "maispace/mai-base": "@dev",
         "maispace/mai-turbo": "@dev",
