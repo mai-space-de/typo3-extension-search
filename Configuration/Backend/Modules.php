@@ -10,7 +10,7 @@ return [
         'access' => 'user',
         'workspaces' => 'online',
         'path' => '/module/mai-search',
-        'iconIdentifier' => 'mai-backend-module',
+        'iconIdentifier' => 'mai-search-module',
         'labels' => 'LLL:EXT:mai_search/Resources/Private/Language/locallang_mod.xlf',
         'extensionName' => 'MaiSearch',
         'controllerActions' => [

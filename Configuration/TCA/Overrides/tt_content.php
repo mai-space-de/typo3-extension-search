@@ -13,6 +13,6 @@ ExtensionUtility::registerPlugin(
     'MaiSearch',
     'Search',
     $lang('plugin.search.title'),
-    'mai-content',
+    'mai-search',
     'maispace_plugins_interactive',
 );
