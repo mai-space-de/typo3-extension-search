@@ -1,5 +1,7 @@
 name: CI
 
+# Re-run after in-tree packages are checked out from the monorepo development branch.
+
 on:
   push:
   pull_request:
