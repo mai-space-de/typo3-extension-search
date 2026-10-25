@@ -22,7 +22,7 @@
                 <source>User prompt template</source>
             </trans-unit>
             <trans-unit id="settings.description.search.rag.userTemplate">
-                <source>Must contain {context} (numbered source snippets) and {query} (the visitor question). Invalid templates fall back to the code default.</source>
+                <source>Leave empty to use the built-in default. Custom values must contain {context} and {query}; invalid templates fall back to the code default. Avoid multiline brace placeholders in site settings — they break TypoScript constant injection.</source>
             </trans-unit>
         </body>
     </file>

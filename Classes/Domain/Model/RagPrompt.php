@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace Maispace\MaiSearch\Domain\Model;
 
 /**
- * Resolved RAG synthesis prompts. Defaults live here so SearchSynthesisService
- * and the Site Set (`search.rag.*`) stay in sync; an empty or invalid site
- * setting falls back to these constants rather than sending a broken prompt.
+ * Resolved RAG synthesis prompts. Authoritative defaults live here;
+ * `search.rag.userTemplate` site setting defaults to empty so multiline
+ * `{context}` / `{query}` placeholders are not injected into TypoScript
+ * constants. Empty or invalid site settings fall back to these constants.
  *
  * `{context}` / `{query}` in the user template are replaced by
  * SearchSynthesisService when assembling the chat request. The fingerprint is

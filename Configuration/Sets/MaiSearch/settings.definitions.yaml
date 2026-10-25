@@ -8,13 +8,11 @@ settings:
     default: 'You are a helpful assistant that answers questions based on the provided context. Keep your answer concise and factual. Answer in the same language as the question. If the context does not contain enough information, say so briefly.'
     type: text
     category: mai-search.rag
+  # Empty → RagPrompt::DEFAULT_USER_TEMPLATE (PHP). Do not put multiline
+  # `{context}` / `Question: {query}` here: site settings are injected as raw
+  # TypoScript constants and newlines/`{` nest later keys under a bogus `Question.`
+  # block (breaks e.g. seo.sitemap.pages.additionalWhere → /sitemap.xml 500).
   search.rag.userTemplate:
-    default: |-
-      Based on the following context, answer the question concisely.
-
-      Context:
-      {context}
-
-      Question: {query}
+    default: ''
     type: text
     category: mai-search.rag

@@ -13,9 +13,10 @@ use TYPO3\CMS\Core\Site\Entity\Site;
  *
  * Empty values and user templates that omit `{context}` or `{query}` fall
  * back to RagPrompt::defaults() so a broken override cannot empty the
- * synthesis prompt. SearchStreamMiddleware reads the same Site attribute as
- * the frontend controller — Site Settings are available there, unlike
- * TypoScript plugin settings (see RagConfiguration).
+ * synthesis prompt. The site-set default for userTemplate is empty on purpose:
+ * multiline `{context}` / `Question: {query}` must not be injected into
+ * TypoScript constants. SearchStreamMiddleware reads Site Settings (not
+ * TypoScript plugin settings; see RagConfiguration).
  */
 final class RagPromptFactory
 {
