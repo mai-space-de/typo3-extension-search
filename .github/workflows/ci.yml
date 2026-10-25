@@ -1,6 +1,6 @@
 name: CI
 
-# Re-run after in-tree packages are checked out from the monorepo development branch.
+# Re-run after sibling clones ignore the Actions job token.
 
 on:
   push:
