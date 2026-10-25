@@ -1,6 +1,6 @@
 name: CI
 
-# Re-run after sibling clones drop the Actions authorization header.
+# Re-run after mai-turbo is bundled in the CI checkout.
 
 on:
   push:
