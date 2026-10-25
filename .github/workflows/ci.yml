@@ -1,6 +1,6 @@
 name: CI
 
-# Re-run after sibling clones ignore the Actions job token.
+# Re-run after sibling clones drop the Actions authorization header.
 
 on:
   push:
